@@ -35,6 +35,51 @@ Excluded from MVP:
 - Tax/accounting export.
 - Cloud sync beyond normal app persistence.
 
+## MVP Scope Refinement
+
+The MVP should answer one narrow operational question: "Can I quickly record what a print consumed and still trust my spool inventory afterward?"
+
+The app should therefore optimize for:
+
+- A reliable spool inventory.
+- A very fast print entry workflow.
+- Transparent calculations that the user can audit.
+- Manual correction when real-world spool weight differs from tracked usage.
+
+The app should not attempt to become a full 3D-printing production management system in the first iteration.
+
+### Product Decisions for MVP
+
+- Tracking is based on user-entered grams, usually copied from the slicer estimate or weighed after printing.
+- Inventory is tracked at the usable filament level, not at gross spool weight including the empty plastic spool.
+- A print can be completed, failed, or cancelled, but all consumed filament should still reduce stock.
+- Failed prints are normal print records with status `failed`; their consumed material still contributes to usage and cost.
+- Material cost means filament cost only. Electricity, machine time, labor, depreciation, and post-processing are out of scope.
+- Multi-spool support belongs in the MVP because many common prints use color swaps, support material, or AMS/MMU setups.
+- User accounts, teams, sharing, and permissions are out of scope until the single-user workflow is proven.
+- Data import/export can wait until the manual model is stable.
+
+### MVP Acceptance Criteria
+
+- A user can create a spool with material, color, initial weight, and price.
+- A user can see active spools and immediately identify low-stock spools.
+- A user can add a print from the dashboard or a spool detail page.
+- Saving a print reduces the linked spool or spools by the consumed grams.
+- The app shows the cost of each print usage and the total print cost.
+- A user can manually adjust a spool's remaining grams and see that adjustment in history.
+- A user can archive or mark a spool empty without losing historical print data.
+- The system prevents silent invalid data, especially negative weights and accidental over-consumption.
+
+### Deferred Decisions
+
+These questions should be answered before Phase 2, but they should not block the MVP:
+
+- Whether persistence should start local-only, hosted, or local-first with sync later.
+- Whether the app should support multiple currencies or only one workspace currency.
+- Whether material density should be required or optional metadata.
+- Whether slicer import should parse files, accept pasted estimates, or support CSV first.
+- Whether users need custom dashboards or only the default inventory-first dashboard.
+
 ## Core Concepts
 
 ### Spool
