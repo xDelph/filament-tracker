@@ -383,11 +383,12 @@ La stack technique recommandee est maintenant documentee dans `docs/technical-st
 
 Points structurants pour les issues:
 
-- frontend React + TypeScript avec Vite,
-- routing type-safe avec TanStack Router,
+- frontend SvelteKit + TypeScript, propulse par Vite,
+- routing fichier natif SvelteKit,
 - persistence locale IndexedDB via Dexie,
 - validation avec Zod,
-- formulaires avec React Hook Form,
+- formulaires SvelteKit avec validation Zod,
 - tests unitaires Vitest et parcours critiques Playwright.
+- package manager et runtime Bun.
 
 Les issues de Vague 1 peuvent donc etre creees et lancees en parallele en partant de `develop`.
