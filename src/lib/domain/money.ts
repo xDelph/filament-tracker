@@ -18,3 +18,16 @@ export const MoneyMinorSchema = z.object({
 });
 
 export type MoneyMinor = z.infer<typeof MoneyMinorSchema>;
+
+/**
+ * Snapshot typique d’un achat de bobine ou d’une valeur stockée où un prix nul n’a pas lieu d’être.
+ */
+export const MoneyMinorPurchaseSchema = MoneyMinorSchema.superRefine((amount, ctx) => {
+	if (amount.minorUnits <= 0) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['minorUnits'],
+			message: 'Le prix doit être strictement positif (centimes).',
+		});
+	}
+});

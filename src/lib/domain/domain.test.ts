@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
 	PrintCreateInputSchema,
@@ -6,6 +6,7 @@ import {
 	SpoolAdjustmentCreateInputSchema,
 	SpoolCreateInputSchema,
 	SpoolSchema,
+	SpoolUpdateInputSchema,
 } from './index';
 
 import {
@@ -55,6 +56,47 @@ describe('create/edit schemas', () => {
 		expect(result.success).toBe(false);
 	});
 
+	it('exige un prix strictement positif à la création de bobine', () => {
+		expect(
+			SpoolCreateInputSchema.safeParse({
+				name: 'Gratuite',
+				material: { kind: 'catalog', code: 'PLA' },
+				colorName: 'Blue',
+				initialWeightG: 1000,
+				purchasePrice: { minorUnits: 0, currency: 'EUR' },
+			}).success,
+		).toBe(false);
+
+		expect(
+			SpoolCreateInputSchema.safeParse({
+				name: 'Paid',
+				material: { kind: 'catalog', code: 'PLA' },
+				colorName: 'Blue',
+				initialWeightG: 1000,
+				purchasePrice: { minorUnits: 1, currency: 'EUR' },
+			}).success,
+		).toBe(true);
+	});
+
+	it('normalise les dates calendaires d’achat', () => {
+		const parsed = SpoolCreateInputSchema.parse({
+			name: 'Date test',
+			material: { kind: 'catalog', code: 'PLA' },
+			colorName: 'Blue',
+			initialWeightG: 1000,
+			purchasePrice: { minorUnits: 2599, currency: 'EUR' },
+			purchaseDate: '2026-03-01',
+		});
+
+		expect(parsed.purchaseDate).toBe('2026-03-01T00:00:00.000Z');
+	});
+
+	it('réinitialise la date d’achat via chaîne vide en update', () => {
+		const parsed = SpoolUpdateInputSchema.parse({ purchaseDate: '   ' });
+
+		expect(parsed.purchaseDate).toBeUndefined();
+	});
+
 	it('exige une note non vide pour les ajustements', () => {
 		expect(
 			SpoolAdjustmentCreateInputSchema.safeParse({
@@ -73,9 +115,18 @@ describe('create/edit schemas', () => {
 		).toBe(true);
 	});
 
-	it('applique un statut par défaut sur une impression créée sans date', () => {
-		const parsed = PrintCreateInputSchema.parse({ name: 'Calibration cube' });
+	it('applique date et statut par défaut sur une création impression', () => {
+		vi.useFakeTimers();
 
-		expect(parsed.status).toBe('completed');
+		try {
+			vi.setSystemTime(new Date('2026-05-03T14:07:41.883Z'));
+
+			const parsed = PrintCreateInputSchema.parse({ name: 'Calibration cube' });
+
+			expect(parsed.status).toBe('completed');
+			expect(parsed.printedAt).toBe('2026-05-03T14:07:41.883Z');
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

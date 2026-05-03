@@ -5,7 +5,8 @@ import {
 	SpoolStatusSchema,
 	type FilamentStandardMaterial,
 } from './enums';
-import { MoneyMinorSchema } from './money';
+import { optionalClearablePurchaseDate, PurchaseDateInputSchema } from './dates';
+import { MoneyMinorPurchaseSchema } from './money';
 import { finiteNonNegativeGrams, finitePositiveGrams } from './weights';
 
 /**
@@ -53,7 +54,7 @@ const BaseSpoolShape = {
 		.optional(),
 	initialWeightG: finitePositiveGrams(),
 	remainingWeightG: finiteNonNegativeGrams(),
-	purchasePrice: MoneyMinorSchema,
+	purchasePrice: MoneyMinorPurchaseSchema,
 	purchaseDate: z.string().datetime({ offset: true }).optional(),
 	supplier: z.string().min(1).max(200).optional(),
 	diameterMm: FilamentDiameterSchema,
@@ -87,8 +88,8 @@ export const SpoolCreateInputSchema = z.object({
 	colorName: BaseSpoolShape.colorName,
 	colorHex: BaseSpoolShape.colorHex,
 	initialWeightG: BaseSpoolShape.initialWeightG,
-	purchasePrice: BaseSpoolShape.purchasePrice,
-	purchaseDate: BaseSpoolShape.purchaseDate,
+	purchasePrice: MoneyMinorPurchaseSchema,
+	purchaseDate: PurchaseDateInputSchema.optional(),
 	supplier: BaseSpoolShape.supplier,
 	diameterMm: BaseSpoolShape.diameterMm.default(1.75),
 	densityGCm3: BaseSpoolShape.densityGCm3,
@@ -106,8 +107,8 @@ export const SpoolUpdateInputSchema = z.object({
 	colorName: BaseSpoolShape.colorName.optional(),
 	colorHex: z.union([BaseSpoolShape.colorHex, z.literal('')]).optional(),
 	initialWeightG: finitePositiveGrams().optional(),
-	purchasePrice: MoneyMinorSchema.optional(),
-	purchaseDate: z.union([BaseSpoolShape.purchaseDate, z.literal('')]).optional(),
+	purchasePrice: MoneyMinorPurchaseSchema.optional(),
+	purchaseDate: optionalClearablePurchaseDate(),
 	supplier: z.union([z.string().min(1).max(200), z.literal('')]).optional(),
 	diameterMm: FilamentDiameterSchema.optional(),
 	densityGCm3: BaseSpoolShape.densityGCm3.optional(),

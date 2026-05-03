@@ -11,9 +11,13 @@ export {
 	SpoolStatusSchema,
 } from './enums';
 
+export type { PurchaseDateInput } from './dates';
+
+export { optionalClearablePurchaseDate, PurchaseDateInputSchema } from './dates';
+
 export type { MoneyMinor } from './money';
 
-export { MoneyMinorSchema } from './money';
+export { MoneyMinorPurchaseSchema, MoneyMinorSchema } from './money';
 
 export { finiteNonNegativeGrams, finitePositiveGrams } from './weights';
 

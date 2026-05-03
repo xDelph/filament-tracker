@@ -22,7 +22,10 @@ export type Print = z.infer<typeof PrintSchema>;
 
 export const PrintCreateInputSchema = z.object({
 	name: PrintSchema.shape.name,
-	printedAt: PrintSchema.shape.printedAt.optional(),
+	/** Fuseau préservé depuis `Date`; le dépôt peut surcharger après validation pour des audits déterministes. */
+	printedAt: PrintSchema.shape.printedAt
+		.optional()
+		.default(() => new Date().toISOString()),
 	status: PrintStatusSchema.default('completed'),
 	notes: PrintSchema.shape.notes,
 });
