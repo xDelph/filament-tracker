@@ -7,3 +7,34 @@ The current project scope is documented in [docs/specifications.md](docs/specifi
 The technical stack decision is documented in [docs/technical-stack.md](docs/technical-stack.md).
 
 The proposed MVP implementation split is documented in [docs/mvp-issue-breakdown.md](docs/mvp-issue-breakdown.md).
+
+## Web app (SvelteKit)
+
+The MVP UI is a [SvelteKit](https://kit.svelte.dev/) application: TypeScript, Vite, Tailwind CSS, Vitest, and Playwright. Use [Bun](https://bun.sh/) as the package manager.
+
+Install dependencies:
+
+```sh
+bun install
+```
+
+Install Playwright browsers once (needed for end-to-end tests):
+
+```sh
+bunx playwright install
+```
+
+| Command | Description |
+| --- | --- |
+| `bun run dev` | Development server (`vite dev`) |
+| `bun run build` | Production build |
+| `bun run preview` | Serve the production build locally |
+| `bun run test` | Unit tests (Vitest) and e2e tests (Playwright) |
+| `bun run test:unit` | Vitest only |
+| `bun run test:e2e` | Playwright only |
+
+To recreate this scaffold with the same add-ons:
+
+```sh
+bun x sv@0.15.2 create --template minimal --types ts --add vitest="usages:unit" playwright tailwindcss="plugins:none" --install bun .
+```
