@@ -19,6 +19,7 @@ Le principe recommande est de separer :
 - La branche de base est `develop`.
 - Chaque issue de realisation part de `develop`.
 - Les issues qui touchent au meme fichier critique doivent etre sequencees pour eviter les conflits.
+- La stack cible est definie dans `docs/technical-stack.md`.
 - Le MVP est single-user.
 - Les donnees minimales sont les bobines, les impressions, les consommations de filament, et les ajustements manuels.
 - Les couts couvrent uniquement le filament.
@@ -376,15 +377,17 @@ Ces sujets sont utiles mais risquent de ralentir le MVP s'ils arrivent trop tot:
 - Notifications et rappels de reapprovisionnement.
 - Tableaux de bord custom.
 
-## Prochaine decision recommandee
+## Decision de stack
 
-Avant de creer les issues, il faut choisir la stack technique de l'application. Sans cette decision, les issues 1, 2 et 3 risquent de diverger.
+La stack technique recommandee est maintenant documentee dans `docs/technical-stack.md`.
 
-Decision minimale a prendre:
+Points structurants pour les issues:
 
-- framework frontend,
-- strategie de persistence,
-- librairie de validation/schema,
-- librairie de tests.
+- frontend React + TypeScript avec Vite,
+- routing type-safe avec TanStack Router,
+- persistence locale IndexedDB via Dexie,
+- validation avec Zod,
+- formulaires avec React Hook Form,
+- tests unitaires Vitest et parcours critiques Playwright.
 
-Une fois cette decision prise, les issues de Vague 1 peuvent etre creees et lancees en parallele.
+Les issues de Vague 1 peuvent donc etre creees et lancees en parallele en partant de `develop`.

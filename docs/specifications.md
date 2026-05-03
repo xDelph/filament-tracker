@@ -57,6 +57,7 @@ The app should not attempt to become a full 3D-printing production management sy
 - Material cost means filament cost only. Electricity, machine time, labor, depreciation, and post-processing are out of scope.
 - Multi-spool support belongs in the MVP because many common prints use color swaps, support material, or AMS/MMU setups.
 - User accounts, teams, sharing, and permissions are out of scope until the single-user workflow is proven.
+- Persistence starts as local-first browser storage. A hosted backend or sync layer can be added later behind the same domain model.
 - Data import/export can wait until the manual model is stable.
 
 ### MVP Acceptance Criteria
@@ -74,7 +75,6 @@ The app should not attempt to become a full 3D-printing production management sy
 
 These questions should be answered before Phase 2, but they should not block the MVP:
 
-- Whether persistence should start local-only, hosted, or local-first with sync later.
 - Whether the app should support multiple currencies or only one workspace currency.
 - Whether material density should be required or optional metadata.
 - Whether slicer import should parse files, accept pasted estimates, or support CSV first.
