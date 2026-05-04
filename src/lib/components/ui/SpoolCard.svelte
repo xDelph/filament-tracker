@@ -17,6 +17,7 @@
     initialWeightG: number;
     remainingValue?: string;
     status: SpoolStatus;
+    onPrint?: () => void;
     onEdit?: () => void;
     onArchive?: () => void;
     onMarkEmpty?: () => void;
@@ -37,6 +38,7 @@
       ? Math.max(0, Math.min(100, Math.round((spool.remainingWeightG / spool.initialWeightG) * 100)))
       : 0
   );
+  let canPrint = $derived(spool.status === 'active' || spool.status === 'low');
 </script>
 
 <article class={['rounded-lg border border-line bg-panel p-4 shadow-sm', className]}>
@@ -82,8 +84,14 @@
           Initial weight <span class="font-semibold text-ink">{spool.initialWeightG} g</span>
         {/if}
       </p>
-      {#if spool.onEdit || spool.onArchive || spool.onMarkEmpty}
+      {#if spool.onPrint || spool.onEdit || spool.onArchive || spool.onMarkEmpty}
         <div class="flex flex-wrap gap-2 sm:justify-end">
+          {#if spool.onPrint}
+            <Button size="sm" variant="secondary" disabled={!canPrint} onclick={spool.onPrint}>
+              <Plus size={16} />
+              Print
+            </Button>
+          {/if}
           {#if spool.onEdit}
             <Button size="sm" variant="secondary" onclick={spool.onEdit}>Edit</Button>
           {/if}
@@ -95,7 +103,7 @@
           {/if}
         </div>
       {:else}
-        <Button size="sm" variant="secondary">
+        <Button size="sm" variant="secondary" disabled={!canPrint}>
           <Plus size={16} />
           Print
         </Button>
