@@ -24,9 +24,11 @@
 
   let {
     spools = [],
+    emptyMessage = 'Aucune bobine à afficher.',
     class: className = ''
   }: {
     spools?: SpoolSummary[];
+    emptyMessage?: string;
     class?: string;
   } = $props();
 </script>
@@ -36,7 +38,7 @@
     <SpoolCard {spool} />
   {:else}
     <div class="rounded-lg border border-dashed border-line bg-panel p-6 text-sm text-ink-muted">
-      Aucune bobine à afficher avec ces filtres.
+      {emptyMessage}
     </div>
   {/each}
 </div>

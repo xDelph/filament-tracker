@@ -174,4 +174,20 @@ describe('sortDashboardSpools', () => {
 			sortDashboardSpools([slow, fast], 'lastUsedAsc', map).map((s) => s.name),
 		).toEqual(['Slow', 'Fast']);
 	});
+
+	it('places never-used spools after dated usage when sorting recent-first', () => {
+		const idUsed = 'aaaaaaaa-bbbb-cccc-dddd-000000000001';
+		const idNever = 'aaaaaaaa-bbbb-cccc-dddd-000000000002';
+		const used = baseSpool({ id: idUsed, name: 'Used', remainingWeightG: 400 });
+		const never = baseSpool({ id: idNever, name: 'Never', remainingWeightG: 400 });
+		const map = new Map<string, number>([[idUsed, Date.parse('2026-06-01T00:00:00.000Z')]]);
+		expect(sortDashboardSpools([never, used], 'lastUsedDesc', map).map((s) => s.name)).toEqual([
+			'Used',
+			'Never',
+		]);
+		expect(sortDashboardSpools([never, used], 'lastUsedAsc', map).map((s) => s.name)).toEqual([
+			'Never',
+			'Used',
+		]);
+	});
 });

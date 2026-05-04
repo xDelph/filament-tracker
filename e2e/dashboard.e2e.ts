@@ -25,6 +25,37 @@ test.describe('dashboard spools', () => {
 		await expect(page.getByRole('heading', { name: 'Archive Me' })).toHaveCount(0);
 	});
 
+	test('material filter and reset narrow inventory', async ({ page }) => {
+		await createSpool(page, 'PLA Only');
+		await createSpool(page, 'PETG Line', { catalogMaterial: 'PETG' });
+
+		await expect(page.getByRole('heading', { name: 'PLA Only' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'PETG Line' })).toBeVisible();
+
+		await page.locator('#filter-material').selectOption({ label: 'PETG' });
+
+		await expect(page.getByRole('heading', { name: 'PETG Line' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'PLA Only' })).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Réinitialiser les filtres' }).first().click();
+
+		await expect(page.getByRole('heading', { name: 'PLA Only' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'PETG Line' })).toBeVisible();
+	});
+
+	test('shows empty-filter banner when no row matches filters', async ({ page }) => {
+		await createSpool(page, 'Healthy Active');
+
+		await page.locator('#filter-status').selectOption({ value: 'low' });
+
+		await expect(page.getByRole('status')).toContainText('Aucun résultat pour ces filtres');
+		await expect(page.getByRole('heading', { name: 'Healthy Active' })).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Réinitialiser les filtres' }).first().click();
+
+		await expect(page.getByRole('heading', { name: 'Healthy Active' })).toBeVisible();
+	});
+
 	test('quick print form persists usage and updates inventory', async ({ page }) => {
 		await createSpool(page, 'Print Source');
 
@@ -46,12 +77,15 @@ test.describe('dashboard spools', () => {
 async function createSpool(
 	page: Page,
 	name: string,
-	options: { initialWeightG?: string; price?: string } = {},
+	options: { initialWeightG?: string; price?: string; catalogMaterial?: string } = {},
 ) {
 	await page.getByRole('button', { name: 'Ajouter une bobine' }).click();
 	await expect(page.getByRole('dialog', { name: 'Ajouter une bobine' })).toBeVisible();
 
 	await page.locator('#dashboard-spool-form-name').fill(name);
+	if (options.catalogMaterial) {
+		await page.locator('#dashboard-spool-form-mat-code').selectOption(options.catalogMaterial);
+	}
 	await page.locator('#dashboard-spool-form-color').fill('Blue');
 	await page.locator('#dashboard-spool-form-hex').fill('#2563eb');
 	await page.locator('#dashboard-spool-form-initial').fill(options.initialWeightG ?? '1000');

@@ -84,9 +84,23 @@ export function sortDashboardSpools(
 	const copy = [...spools];
 
 	const cmpLastUsed = (a: Spool, b: Spool, desc: boolean): number => {
-		const ta = lastUsedMsBySpoolId.get(a.id) ?? -1;
-		const tb = lastUsedMsBySpoolId.get(b.id) ?? -1;
-		const primary = desc ? tb - ta : ta - tb;
+		const ta = lastUsedMsBySpoolId.get(a.id);
+		const tb = lastUsedMsBySpoolId.get(b.id);
+		const aNever = ta === undefined;
+		const bNever = tb === undefined;
+
+		if (aNever && bNever) {
+			return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+		}
+
+		if (aNever !== bNever) {
+			if (desc) {
+				return aNever ? 1 : -1;
+			}
+			return aNever ? -1 : 1;
+		}
+
+		const primary = desc ? tb! - ta! : ta! - tb!;
 		if (primary !== 0) return primary;
 		return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
 	};

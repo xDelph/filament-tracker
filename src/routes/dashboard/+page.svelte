@@ -119,6 +119,22 @@
 		{ value: 'lastUsedAsc', label: 'Dernière utilisation (ancien)' },
 	];
 
+	const PRINT_STATUS_LABEL_FR: Record<PrintStatus, string> = {
+		completed: 'Terminée',
+		failed: 'Échouée',
+		cancelled: 'Annulée',
+	};
+
+	let filtersActive = $derived(
+		Boolean(filterMaterialKey) || Boolean(filterStatus) || filterLowStock !== 'all',
+	);
+
+	function resetInventoryFilters(): void {
+		filterMaterialKey = '';
+		filterStatus = '';
+		filterLowStock = 'all';
+	}
+
 	let spoolModalOpen = $state(false);
 	let spoolModalMode = $state<'create' | 'edit'>('create');
 	let editingSpoolId = $state<string | null>(null);
@@ -169,6 +185,7 @@
 				...print,
 				totalG: Number(totalG.toFixed(2)),
 				totalCost: formatMoneyMinor({ minorUnits: totalMinor, currency }),
+				statusLabel: PRINT_STATUS_LABEL_FR[print.status],
 				spoolNames: printUsages
 					.map((usage) => spools.find((spool) => spool.id === usage.spoolId)?.name)
 					.filter(Boolean)
@@ -356,17 +373,26 @@
 
 	<section class="grid gap-4" aria-labelledby="inventory-heading">
 		<div class="flex flex-wrap items-end justify-between gap-3">
-			<div>
-				<h2 id="inventory-heading" class="text-base font-semibold text-ink">
-					Bobines ({sortedSpools.length}
-					{#if sortedSpools.length !== spools.length}
-						<span class="font-normal text-ink-muted"> / {spools.length}</span>
-					{/if})
-				</h2>
-				<p class="text-sm text-ink-muted">
-					Filtrez par matériau, statut ou alerte stock bas, puis triez par stock ou dernière utilisation.
-				</p>
+			<div class="min-w-0 flex-1">
+				<h2 id="inventory-heading" class="text-base font-semibold text-ink">Inventaire</h2>
+				{#if spools.length === 0}
+					<p class="mt-1 text-sm text-ink-muted">
+						Ajoute une bobine pour alimenter cet inventaire.
+					</p>
+				{:else}
+					<p class="mt-1 text-sm text-ink-muted">
+						{sortedSpools.length} bobine{sortedSpools.length === 1 ? '' : 's'} affichée{sortedSpools.length === 1
+							? ''
+							: 's'}{#if sortedSpools.length !== spools.length}&nbsp;sur {spools.length}{/if}. Combine matériau, statut
+						et alerte&nbsp;: sans résultat, élargis ou réinitialise les filtres.
+					</p>
+				{/if}
 			</div>
+			{#if filtersActive}
+				<Button variant="ghost" size="sm" type="button" onclick={resetInventoryFilters}>
+					Réinitialiser les filtres
+				</Button>
+			{/if}
 		</div>
 
 		<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -397,7 +423,39 @@
 			/>
 		</div>
 
-		<SpoolList spools={spoolSummaries} />
+		{#if sortBy === 'lastUsedDesc' || sortBy === 'lastUsedAsc'}
+			<p id="inventory-sort-hint" class="text-xs leading-relaxed text-ink-muted">
+				Les bobines sans historique d’impression sont en bas lorsque tu tries par utilisation la plus récente,
+				et en haut lorsque tu tries par la plus ancienne. À l’intérieur de chaque groupe, tri alphabétique sur le nom.
+			</p>
+		{/if}
+
+		{#if sortedSpools.length === 0 && spools.length > 0}
+			<div
+				class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-ink shadow-sm"
+				role="status"
+				aria-live="polite"
+			>
+				<p class="font-semibold text-ink">Aucun résultat pour ces filtres</p>
+				<p class="mt-1 text-ink-muted">
+					Réinitialise les filtres ou assouplis au moins un critère pour retrouver des bobines.
+				</p>
+				<Button
+					variant="secondary"
+					size="sm"
+					class="mt-3"
+					type="button"
+					onclick={resetInventoryFilters}
+				>
+					Réinitialiser les filtres
+				</Button>
+			</div>
+		{:else}
+			<SpoolList
+				spools={spoolSummaries}
+				emptyMessage="Aucune bobine dans l’inventaire actif ou stock bas. Ajoutez une bobine pour commencer."
+			/>
+		{/if}
 	</section>
 
 	<section>
@@ -413,7 +471,7 @@
 					<div class="min-w-0">
 						<p class="truncate text-sm font-semibold text-ink">{print.name}</p>
 						<p class="truncate text-xs text-ink-muted">
-							{print.spoolNames || 'Aucune bobine'} / {print.status}
+							{print.spoolNames || 'Aucune bobine'} / {print.statusLabel}
 						</p>
 					</div>
 					<p class="text-sm font-medium text-ink">{print.totalG} g</p>

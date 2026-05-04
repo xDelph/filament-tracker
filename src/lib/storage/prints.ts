@@ -165,7 +165,7 @@ export async function listPrintUsages(
 }
 
 export const PRINT_STATUS_OPTIONS: Array<{ value: PrintStatus; label: string }> = [
-	{ value: 'completed', label: 'Completed' },
-	{ value: 'failed', label: 'Failed' },
-	{ value: 'cancelled', label: 'Cancelled' },
+	{ value: 'completed', label: 'Terminée' },
+	{ value: 'failed', label: 'Échouée' },
+	{ value: 'cancelled', label: 'Annulée' },
 ];
