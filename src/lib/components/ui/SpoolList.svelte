@@ -16,6 +16,7 @@
     remainingValue?: string;
     lastUsedText?: string;
     status: SpoolStatus;
+    detailHref?: string;
     onPrint?: () => void;
     onEdit?: () => void;
     onArchive?: () => void;

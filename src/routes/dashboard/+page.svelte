@@ -2,6 +2,7 @@
 	import { liveQuery } from 'dexie';
 	import { Plus, Trash2 } from 'lucide-svelte';
 
+	import { resolve } from '$app/paths';
 	import {
 		buildLastUsedMsBySpoolId,
 		filterDashboardSpools,
@@ -290,6 +291,7 @@
 			remainingValue: formatMoneyMinor(remainingMinor),
 			lastUsedText:
 				lastMs !== undefined ? formatLastUsedRelative(lastMs, nowMs) ?? '—' : 'Jamais',
+			detailHref: resolve(`/spools/${s.id}`),
 			status: s.status,
 			onPrint: () => openPrintModal(s.id),
 			onEdit: () => openEdit(s),

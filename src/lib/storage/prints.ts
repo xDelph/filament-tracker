@@ -9,8 +9,8 @@ import {
 	type PrintStatus,
 	type Spool,
 	clampRemainingToInitialRange,
-	isLowStock,
 	materialCostForGramsAtSpoolRate,
+	spoolStatusAfterRemainderChange,
 } from '$lib/domain';
 
 import { db, type FilamentTrackerDatabase } from './db';
@@ -44,18 +44,6 @@ export class PrintPersistenceError extends Error {
 		super(message);
 		this.name = 'PrintPersistenceError';
 	}
-}
-
-function nextSpoolStatus(spool: Spool, remainingWeightG: number): Spool['status'] {
-	if (spool.status === 'archived') {
-		return spool.status;
-	}
-
-	if (remainingWeightG <= 0) {
-		return 'empty';
-	}
-
-	return isLowStock(remainingWeightG, spool.initialWeightG, LOW_STOCK_THRESHOLDS) ? 'low' : 'active';
 }
 
 function createId(): string {
@@ -137,7 +125,7 @@ export async function createPrintWithUsages(
 			updates.set(spool.id, {
 				...spool,
 				remainingWeightG,
-				status: nextSpoolStatus(spool, remainingWeightG),
+				status: spoolStatusAfterRemainderChange(spool, remainingWeightG),
 				updatedAt: now,
 			});
 		}
@@ -162,6 +150,13 @@ export async function listPrintUsages(
 	database: FilamentTrackerDatabase = db,
 ): Promise<PrintFilamentUsage[]> {
 	return database.printFilamentUsages.toArray();
+}
+
+export async function listPrintUsagesForSpool(
+	spoolId: string,
+	database: FilamentTrackerDatabase = db,
+): Promise<PrintFilamentUsage[]> {
+	return database.printFilamentUsages.where('spoolId').equals(spoolId).toArray();
 }
 
 export const PRINT_STATUS_OPTIONS: Array<{ value: PrintStatus; label: string }> = [
