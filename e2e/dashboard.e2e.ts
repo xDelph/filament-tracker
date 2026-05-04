@@ -61,7 +61,7 @@ test.describe('dashboard spools', () => {
 
 		await page.getByRole('button', { name: 'Ajouter une impression' }).click();
 		const printDialog = page.getByRole('dialog', { name: 'Ajouter une impression' });
-		await printDialog.locator('#print-name').fill('Fast calibration cube');
+		await printDialog.getByLabel("Nom de l'impression").fill('Fast calibration cube');
 		await printDialog.getByLabel('Bobine').selectOption({ label: 'Print Source (1000 g)' });
 		await printDialog.getByLabel('Utilisé').fill('10');
 		await printDialog.getByLabel('Rebut').fill('2');
@@ -71,6 +71,34 @@ test.describe('dashboard spools', () => {
 		await expect(page.getByText('Fast calibration cube')).toBeVisible();
 		await expect(page.getByText('12 g')).toBeVisible();
 		await expect(page.getByText('988 g')).toBeVisible();
+	});
+
+	test('print history lists saved prints with filters and detail', async ({ page }) => {
+		await createSpool(page, 'History Source');
+
+		await page.getByRole('button', { name: 'Ajouter une impression' }).click();
+		const printDialog = page.getByRole('dialog', { name: 'Ajouter une impression' });
+		await printDialog.getByLabel("Nom de l'impression").fill('History calibration cube');
+		await printDialog.getByLabel("Date d'impression").fill('2026-05-04T00:30');
+		await printDialog.getByLabel('Bobine').selectOption({ label: 'History Source (1000 g)' });
+		await printDialog.getByLabel('Utilisé').fill('10');
+		await printDialog.getByLabel('Rebut').fill('2');
+		await printDialog.getByRole('button', { name: /Enregistrer l[\u2019']impression/ }).click();
+		await expect(page.getByText('Impression enregistrée et stocks mis à jour.')).toBeVisible();
+
+		await page.goto('/prints');
+
+		await expect(page.getByRole('heading', { name: 'Print history' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'History calibration cube' })).toBeVisible();
+		await expect(page.getByText('12 g').first()).toBeVisible();
+		await expect(page.getByText('0,30 €').first()).toBeVisible();
+
+		await page.getByLabel('Spool').selectOption({ label: 'History Source' });
+		await page.getByLabel('From').fill('2026-05-04');
+		await expect(page.getByText('1 prints / 12 g / 0,30 €')).toBeVisible();
+
+		await page.getByLabel('Status').selectOption('failed');
+		await expect(page.getByRole('heading', { name: 'No prints match these filters' })).toBeVisible();
 	});
 });
 
