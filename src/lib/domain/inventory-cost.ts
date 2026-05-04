@@ -2,6 +2,16 @@ import type { MoneyMinor } from './money';
 import type { PrintFilamentUsage } from './print-filament-usage';
 import type { Spool } from './spool';
 
+const ISO_4217_ALPHA3 = /^[A-Z]{3}$/;
+
+function assertIso4217Currency(code: string, context: string): void {
+	if (!ISO_4217_ALPHA3.test(code)) {
+		throw new RangeError(
+			`${context}: currency must be an ISO 4217 alphabetic code in uppercase (e.g. EUR).`,
+		);
+	}
+}
+
 /**
  * Coût moyen (centimes / équivalent mineur) pour une gramme de matière, dérivé du prix d'achat et du poids initial.
  * Résultat potentiellement fractionnaire ; arrondir côté facturation via `materialCostForGramsAtSpoolRate`.
@@ -65,25 +75,32 @@ export function materialCostForGramsAtSpoolRate(
 
 /**
  * Somme des coûts matière des lignes d'une impression.
- * @param emptyCurrency — requis lorsque `usages` est vide (devise du total zéro).
- * @throws RangeError si les lignes mélangent plusieurs codes devise.
+ * @param emptyCurrency — utilisé uniquement quand `usages` est vide ; doit être ISO 4217 majuscules.
+ * @throws RangeError si les lignes mélangent plusieurs codes devise, si une devise est invalide, ou si la somme dépasse {@link Number.MAX_SAFE_INTEGER}.
  */
 export function totalPrintMaterialCost(
 	usages: Array<Pick<PrintFilamentUsage, 'cost'>>,
 	emptyCurrency: string,
 ): MoneyMinor {
 	if (usages.length === 0) {
+		assertIso4217Currency(emptyCurrency, 'totalPrintMaterialCost');
 		return { minorUnits: 0, currency: emptyCurrency };
 	}
 
 	const currency = usages[0]!.cost.currency;
+	assertIso4217Currency(currency, 'totalPrintMaterialCost');
 	let sum = 0;
 
 	for (const u of usages) {
+		assertIso4217Currency(u.cost.currency, 'totalPrintMaterialCost');
 		if (u.cost.currency !== currency) {
 			throw new RangeError('totalPrintMaterialCost: mixed currency');
 		}
 		sum += u.cost.minorUnits;
+	}
+
+	if (!Number.isSafeInteger(sum)) {
+		throw new RangeError('totalPrintMaterialCost: sum exceeds safe integer range');
 	}
 
 	return { minorUnits: sum, currency };

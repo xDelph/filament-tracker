@@ -81,6 +81,24 @@ describe('inventory-cost', () => {
 		});
 	});
 
+	it('rejette une devise vide ou non ISO 4217 pour un total à 0 ligne', () => {
+		expect(() => totalPrintMaterialCost([], '')).toThrowError(/ISO 4217/i);
+		expect(() => totalPrintMaterialCost([], 'eu')).toThrowError(/ISO 4217/i);
+	});
+
+	it('rejette une somme hors plage entière sûre', () => {
+		const hi = Number.MAX_SAFE_INTEGER;
+		expect(() =>
+			totalPrintMaterialCost(
+				[
+					{ cost: { minorUnits: hi, currency: 'EUR' } },
+					{ cost: { minorUnits: 2, currency: 'EUR' } },
+				],
+				'EUR',
+			),
+		).toThrowError(/safe integer/i);
+	});
+
 	it('rejette un mélange de devises', () => {
 		const mixed = PrintFilamentUsageSchema.parse({
 			...fixtureUsageBenchyGrey,
