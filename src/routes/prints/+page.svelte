@@ -86,8 +86,6 @@
 		prints.map((print) => {
 			const printUsages = usages.filter((usage) => usage.printId === print.id);
 			const totalG = printUsages.reduce((sum, usage) => sum + consumedGrams(usage), 0);
-			const totalMinor = printUsages.reduce((sum, usage) => sum + usage.cost.minorUnits, 0);
-			const currency = printUsages[0]?.cost.currency ?? 'EUR';
 			const enrichedUsages = printUsages.map((usage) => {
 				const spool = spoolById.get(usage.spoolId);
 				return {
@@ -103,7 +101,7 @@
 			return {
 				...print,
 				totalG: Number(totalG.toFixed(2)),
-				totalCost: formatMoneyMinor({ minorUnits: totalMinor, currency }),
+				totalCost: formatCostTotal(printUsages),
 				spoolNames: enrichedUsages.map((usage) => usage.spool?.name ?? 'Unknown spool').join(', '),
 				materials,
 				usages: enrichedUsages,
@@ -113,7 +111,7 @@
 
 	let filteredRows = $derived(
 		historyRows.filter((row) => {
-			const printDate = row.printedAt.slice(0, 10);
+			const printDate = localDateKey(row.printedAt);
 			const matchesStart = !startDate || printDate >= startDate;
 			const matchesEnd = !endDate || printDate <= endDate;
 			const matchesStatus = !statusFilter || row.status === statusFilter;
@@ -136,14 +134,7 @@
 		grams: Number(
 			filteredRows.reduce((sum, row) => sum + row.totalG, 0).toFixed(2),
 		),
-		cost: formatMoneyMinor({
-			minorUnits: filteredRows.reduce(
-				(sum, row) =>
-					sum + row.usages.reduce((usageSum, usage) => usageSum + usage.cost.minorUnits, 0),
-				0,
-			),
-			currency: filteredRows[0]?.usages[0]?.cost.currency ?? 'EUR',
-		}),
+		cost: formatCostTotal(filteredRows.flatMap((row) => row.usages)),
 	});
 
 	function consumedGrams(usage: PrintFilamentUsage): number {
@@ -159,6 +150,34 @@
 			dateStyle: 'medium',
 			timeStyle: 'short',
 		}).format(new Date(value));
+	}
+
+	function localDateKey(value: string): string {
+		const date = new Date(value);
+		const month = `${date.getMonth() + 1}`.padStart(2, '0');
+		const day = `${date.getDate()}`.padStart(2, '0');
+
+		return `${date.getFullYear()}-${month}-${day}`;
+	}
+
+	function formatCostTotal(costUsages: Array<Pick<PrintFilamentUsage, 'cost'>>): string {
+		if (costUsages.length === 0) {
+			return formatMoneyMinor({ minorUnits: 0, currency: 'EUR' });
+		}
+
+		const totalsByCurrency = new Map<string, number>();
+
+		for (const usage of costUsages) {
+			totalsByCurrency.set(
+				usage.cost.currency,
+				(totalsByCurrency.get(usage.cost.currency) ?? 0) + usage.cost.minorUnits,
+			);
+		}
+
+		return [...totalsByCurrency]
+			.toSorted(([a], [b]) => a.localeCompare(b))
+			.map(([currency, minorUnits]) => formatMoneyMinor({ minorUnits, currency }))
+			.join(' + ');
 	}
 
 	function clearFilters(): void {

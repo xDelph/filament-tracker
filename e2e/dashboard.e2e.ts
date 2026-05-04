@@ -78,6 +78,7 @@ test.describe('dashboard spools', () => {
 
 		await page.getByRole('button', { name: 'Add print' }).click();
 		await page.getByLabel('Print name').fill('History calibration cube');
+		await page.getByLabel('Print date').fill('2026-05-04T00:30');
 		await page.getByLabel('Spool').selectOption({ label: 'History Source (1000 g)' });
 		await page.getByLabel('Used').fill('10');
 		await page.getByLabel('Waste').fill('2');
@@ -92,6 +93,7 @@ test.describe('dashboard spools', () => {
 		await expect(page.getByText('0,30 €').first()).toBeVisible();
 
 		await page.getByLabel('Spool').selectOption({ label: 'History Source' });
+		await page.getByLabel('From').fill('2026-05-04');
 		await expect(page.getByText('1 prints / 12 g / 0,30 €')).toBeVisible();
 
 		await page.getByLabel('Status').selectOption('failed');
