@@ -17,28 +17,43 @@
 
 	let modalOpen = $state(false);
 	let modalMode = $state<'create' | 'edit'>('create');
-	let editingSpool = $state<Spool | null>(null);
+	let editingSpoolId = $state<string | null>(null);
+	/** Snapshot when opening edit so the form still mounts if the row drops out of the filtered list briefly. */
+	let editingSpoolFallback = $state<Spool | null>(null);
 	let modalNonce = $state(0);
 
 	const formId = 'dashboard-spool-form';
 
+	let spoolForEditForm = $derived(
+		editingSpoolId
+			? (spools.find((s) => s.id === editingSpoolId) ?? editingSpoolFallback)
+			: null,
+	);
+
+	let editingLiveRemainingG = $derived(
+		editingSpoolId ? spools.find((s) => s.id === editingSpoolId)?.remainingWeightG : undefined,
+	);
+
 	function openCreate() {
 		modalMode = 'create';
-		editingSpool = null;
+		editingSpoolId = null;
+		editingSpoolFallback = null;
 		modalNonce += 1;
 		modalOpen = true;
 	}
 
 	function openEdit(spool: Spool) {
 		modalMode = 'edit';
-		editingSpool = spool;
+		editingSpoolId = spool.id;
+		editingSpoolFallback = spool;
 		modalNonce += 1;
 		modalOpen = true;
 	}
 
 	function closeModal() {
 		modalOpen = false;
-		editingSpool = null;
+		editingSpoolId = null;
+		editingSpoolFallback = null;
 	}
 
 	function materialLabel(s: Spool): string {
@@ -91,7 +106,13 @@
 		onClose={closeModal}
 	>
 		{#key modalNonce}
-			<SpoolForm {formId} mode={modalMode} spool={editingSpool} onsaved={closeModal} />
+			<SpoolForm
+				{formId}
+				mode={modalMode}
+				spool={spoolForEditForm}
+				liveRemainingWeightG={editingLiveRemainingG}
+				onsaved={closeModal}
+			/>
 		{/key}
 		{#snippet footer()}
 			<Button variant="secondary" onclick={closeModal}>Cancel</Button>

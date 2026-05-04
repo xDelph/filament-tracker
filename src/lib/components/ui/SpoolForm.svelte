@@ -60,11 +60,14 @@
 		mode,
 		formId,
 		spool = null,
+		liveRemainingWeightG,
 		onsaved = () => {}
 	}: {
 		mode: 'create' | 'edit';
 		formId: string;
 		spool?: Spool | null;
+		/** When IndexedDB refreshes (e.g. another writer), reflect latest remaining grams without resetting the form. */
+		liveRemainingWeightG?: number | undefined;
 		onsaved?: () => void;
 	} = $props();
 
@@ -87,6 +90,7 @@
 
 	let formError = $state('');
 	let fieldErrors = $state<Record<string, string>>({});
+	let lastHydratedSpoolId = $state<string | null>(null);
 
 	function hydrateFromSpool(s: Spool) {
 		name = s.name;
@@ -116,7 +120,12 @@
 		formError = '';
 		fieldErrors = {};
 		if (mode === 'edit' && spool) {
-			hydrateFromSpool(spool);
+			if (lastHydratedSpoolId !== spool.id) {
+				hydrateFromSpool(spool);
+				lastHydratedSpoolId = spool.id;
+			}
+		} else {
+			lastHydratedSpoolId = null;
 		}
 	});
 
@@ -170,7 +179,7 @@
 			return;
 		}
 
-		const patch = {
+		const patchRaw = {
 			name: name.trim(),
 			material: materialPayload(),
 			brand: brand.trim() ? brand.trim() : ('' as const),
@@ -178,21 +187,21 @@
 			colorHex: colorHex.trim() ? colorHex.trim() : ('' as const),
 			initialWeightG,
 			purchasePrice,
-			purchaseDate: purchaseDate.trim() ? purchaseDate.trim() : undefined,
+			purchaseDate: purchaseDate.trim(),
 			supplier: supplier.trim() ? supplier.trim() : ('' as const),
 			diameterMm: diameter,
 			densityGCm3,
 			status,
 			notes: notes.trim() ? notes.trim() : ('' as const),
 		};
-		const parsed = SpoolUpdateInputSchema.safeParse(patch);
+		const parsed = SpoolUpdateInputSchema.safeParse(patchRaw);
 		if (!parsed.success) {
 			fieldErrors = zodFieldMap(parsed.error);
 			formError = 'Some fields need attention.';
 			return;
 		}
 		try {
-			await updateSpool(spool.id, parsed.data);
+			await updateSpool(spool.id, patchRaw);
 			onsaved();
 		} catch (err) {
 			formError = err instanceof Error ? err.message : 'Save failed.';
@@ -217,7 +226,9 @@
 	{#if mode === 'edit' && spool}
 		<p class="text-sm text-ink-muted">
 			Remaining weight:
-			<span class="font-semibold text-ink">{spool.remainingWeightG} g</span>
+			<span class="font-semibold text-ink"
+				>{liveRemainingWeightG ?? spool.remainingWeightG} g</span
+			>
 			— adjust via usage or manual adjustments when those flows exist.
 		</p>
 	{/if}

@@ -9,7 +9,29 @@ import {
 
 import { db } from './db';
 
-function mergeSpoolUpdate(existing: Spool, patch: SpoolUpdateInput): Spool {
+/** Raw patch contained `purchaseDate: ''` before Zod strips it — persist clearing the field. */
+function patchClearsPurchaseDate(patch: unknown): boolean {
+	if (!patch || typeof patch !== 'object') return false;
+	return (
+		'purchaseDate' in patch &&
+		(patch as Record<string, unknown>).purchaseDate === ''
+	);
+}
+
+export function mergeSpoolUpdate(
+	existing: Spool,
+	patch: SpoolUpdateInput,
+	options?: { clearPurchaseDate?: boolean },
+): Spool {
+	let purchaseDate: Spool['purchaseDate'];
+	if (options?.clearPurchaseDate) {
+		purchaseDate = undefined;
+	} else if (patch.purchaseDate !== undefined) {
+		purchaseDate = patch.purchaseDate;
+	} else {
+		purchaseDate = existing.purchaseDate;
+	}
+
 	const next: Spool = {
 		...existing,
 		...(patch.name !== undefined && { name: patch.name }),
@@ -21,7 +43,6 @@ function mergeSpoolUpdate(existing: Spool, patch: SpoolUpdateInput): Spool {
 		}),
 		...(patch.initialWeightG !== undefined && { initialWeightG: patch.initialWeightG }),
 		...(patch.purchasePrice !== undefined && { purchasePrice: patch.purchasePrice }),
-		...(patch.purchaseDate !== undefined && { purchaseDate: patch.purchaseDate }),
 		...(patch.supplier !== undefined && {
 			supplier: patch.supplier === '' ? undefined : patch.supplier,
 		}),
@@ -29,6 +50,7 @@ function mergeSpoolUpdate(existing: Spool, patch: SpoolUpdateInput): Spool {
 		...(patch.densityGCm3 !== undefined && { densityGCm3: patch.densityGCm3 }),
 		...(patch.status !== undefined && { status: patch.status }),
 		...(patch.notes !== undefined && { notes: patch.notes === '' ? undefined : patch.notes }),
+		purchaseDate,
 		updatedAt: new Date().toISOString(),
 	};
 	return SpoolSchema.parse(next);
@@ -66,8 +88,9 @@ export async function updateSpool(id: string, patch: unknown): Promise<Spool> {
 	if (!existing) {
 		throw new Error(`Bobine introuvable (${id}).`);
 	}
+	const clearPurchaseDate = patchClearsPurchaseDate(patch);
 	const parsed = SpoolUpdateInputSchema.parse(patch);
-	const updated = mergeSpoolUpdate(existing, parsed);
+	const updated = mergeSpoolUpdate(existing, parsed, { clearPurchaseDate });
 	await db.spools.put(updated);
 	return updated;
 }
