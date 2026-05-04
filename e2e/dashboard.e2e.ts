@@ -72,6 +72,31 @@ test.describe('dashboard spools', () => {
 		await expect(page.getByText('12 g')).toBeVisible();
 		await expect(page.getByText('988 g')).toBeVisible();
 	});
+
+	test('print history lists saved prints with filters and detail', async ({ page }) => {
+		await createSpool(page, 'History Source');
+
+		await page.getByRole('button', { name: 'Add print' }).click();
+		await page.getByLabel('Print name').fill('History calibration cube');
+		await page.getByLabel('Spool').selectOption({ label: 'History Source (1000 g)' });
+		await page.getByLabel('Used').fill('10');
+		await page.getByLabel('Waste').fill('2');
+		await page.getByRole('button', { name: 'Save print' }).click();
+		await expect(page.getByText('Print saved and spool inventory updated.')).toBeVisible();
+
+		await page.goto('/prints');
+
+		await expect(page.getByRole('heading', { name: 'Print history' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'History calibration cube' })).toBeVisible();
+		await expect(page.getByText('12 g').first()).toBeVisible();
+		await expect(page.getByText('0,30 €').first()).toBeVisible();
+
+		await page.getByLabel('Spool').selectOption({ label: 'History Source' });
+		await expect(page.getByText('1 prints / 12 g / 0,30 €')).toBeVisible();
+
+		await page.getByLabel('Status').selectOption('failed');
+		await expect(page.getByRole('heading', { name: 'No prints match these filters' })).toBeVisible();
+	});
 });
 
 async function createSpool(
