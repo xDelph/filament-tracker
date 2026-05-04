@@ -12,7 +12,9 @@
     colorHex?: string;
     remainingWeightG: number;
     initialWeightG: number;
+    remainingPercentLabel?: string;
     remainingValue?: string;
+    lastUsedText?: string;
     status: SpoolStatus;
     onPrint?: () => void;
     onEdit?: () => void;
@@ -34,7 +36,7 @@
     <SpoolCard {spool} />
   {:else}
     <div class="rounded-lg border border-dashed border-line bg-panel p-6 text-sm text-ink-muted">
-      No spools to display.
+      Aucune bobine à afficher avec ces filtres.
     </div>
   {/each}
 </div>

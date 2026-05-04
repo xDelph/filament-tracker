@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus } from 'lucide-svelte';
+  import { AlertTriangle, Plus } from 'lucide-svelte';
   import Button from './Button.svelte';
   import ColorSwatch from './ColorSwatch.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -15,13 +15,30 @@
     colorHex?: string;
     remainingWeightG: number;
     initialWeightG: number;
+    remainingPercentLabel?: string;
     remainingValue?: string;
+    lastUsedText?: string;
     status: SpoolStatus;
     onPrint?: () => void;
     onEdit?: () => void;
     onArchive?: () => void;
     onMarkEmpty?: () => void;
   };
+
+  function statusLabelFr(status: SpoolStatus): string {
+    switch (status) {
+      case 'active':
+        return 'Actif';
+      case 'low':
+        return 'Stock bas';
+      case 'empty':
+        return 'Vide';
+      case 'archived':
+        return 'Archivé';
+      default:
+        return status;
+    }
+  }
 
   let {
     spool,
@@ -38,6 +55,10 @@
       ? Math.max(0, Math.min(100, Math.round((spool.remainingWeightG / spool.initialWeightG) * 100)))
       : 0
   );
+  let remainingPercentDisplay = $derived(
+    spool.remainingPercentLabel ??
+      `${remainingPercent}\u00a0% restant`
+  );
   let canPrint = $derived(spool.status === 'active' || spool.status === 'low');
 </script>
 
@@ -52,16 +73,24 @@
         {[spool.brand, spool.material, spool.colorName].filter(Boolean).join(' / ')}
       </p>
     </div>
-    <StatusBadge status={spool.status} />
+    <div class="flex shrink-0 items-center gap-1.5">
+      {#if spool.status === 'low'}
+        <span class="inline-flex text-warning" title="Stock bas">
+          <AlertTriangle size={18} aria-hidden="true" />
+          <span class="sr-only">Alerte stock bas</span>
+        </span>
+      {/if}
+      <StatusBadge status={spool.status} label={statusLabelFr(spool.status)} />
+    </div>
   </div>
 
   <div class="mt-4 grid gap-2">
     <div class="flex items-end justify-between gap-3">
       <div>
-        <p class="text-xs font-medium text-ink-muted">Remaining</p>
+        <p class="text-xs font-medium text-ink-muted">Grammes restantes</p>
         <p class="text-lg font-semibold text-ink">{spool.remainingWeightG} g</p>
       </div>
-      <p class="text-sm font-semibold text-ink-muted">{remainingPercent}%</p>
+      <p class="text-sm font-semibold text-ink-muted">{remainingPercentDisplay}</p>
     </div>
     <div class="h-2 overflow-hidden rounded-full bg-panel-muted">
       <div
@@ -71,6 +100,11 @@
         style={`width: ${remainingPercent}%`}
       ></div>
     </div>
+    {#if spool.lastUsedText}
+      <p class="text-xs text-ink-muted">
+        Dernière utilisation&nbsp;: <span class="font-medium text-ink">{spool.lastUsedText}</span>
+      </p>
+    {/if}
   </div>
 
   {#if !compact}
@@ -79,9 +113,9 @@
     >
       <p class="text-xs text-ink-muted">
         {#if spool.remainingValue}
-          Value left <span class="font-semibold text-ink">{spool.remainingValue}</span>
+          Coût restant estimé&nbsp;: <span class="font-semibold text-ink">{spool.remainingValue}</span>
         {:else}
-          Initial weight <span class="font-semibold text-ink">{spool.initialWeightG} g</span>
+          Poids initial&nbsp;: <span class="font-semibold text-ink">{spool.initialWeightG} g</span>
         {/if}
       </p>
       {#if spool.onPrint || spool.onEdit || spool.onArchive || spool.onMarkEmpty}
@@ -89,23 +123,23 @@
           {#if spool.onPrint}
             <Button size="sm" variant="secondary" disabled={!canPrint} onclick={spool.onPrint}>
               <Plus size={16} />
-              Print
+              Imprimer
             </Button>
           {/if}
           {#if spool.onEdit}
-            <Button size="sm" variant="secondary" onclick={spool.onEdit}>Edit</Button>
+            <Button size="sm" variant="secondary" onclick={spool.onEdit}>Modifier</Button>
           {/if}
           {#if spool.onMarkEmpty}
-            <Button size="sm" variant="secondary" onclick={spool.onMarkEmpty}>Mark empty</Button>
+            <Button size="sm" variant="secondary" onclick={spool.onMarkEmpty}>Marquer vide</Button>
           {/if}
           {#if spool.onArchive}
-            <Button size="sm" variant="danger" onclick={spool.onArchive}>Archive</Button>
+            <Button size="sm" variant="danger" onclick={spool.onArchive}>Archiver</Button>
           {/if}
         </div>
       {:else}
         <Button size="sm" variant="secondary" disabled={!canPrint}>
           <Plus size={16} />
-          Print
+          Imprimer
         </Button>
       {/if}
     </div>
