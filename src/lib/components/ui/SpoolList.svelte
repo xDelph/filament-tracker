@@ -14,6 +14,7 @@
     initialWeightG: number;
     remainingValue?: string;
     status: SpoolStatus;
+    onPrint?: () => void;
     onEdit?: () => void;
     onArchive?: () => void;
     onMarkEmpty?: () => void;
