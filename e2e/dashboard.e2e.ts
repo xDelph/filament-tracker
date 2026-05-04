@@ -61,7 +61,7 @@ test.describe('dashboard spools', () => {
 
 		await page.getByRole('button', { name: 'Ajouter une impression' }).click();
 		const printDialog = page.getByRole('dialog', { name: 'Ajouter une impression' });
-		await printDialog.locator('#print-name').fill('Fast calibration cube');
+		await printDialog.getByLabel("Nom de l'impression").fill('Fast calibration cube');
 		await printDialog.getByLabel('Bobine').selectOption({ label: 'Print Source (1000 g)' });
 		await printDialog.getByLabel('Utilisé').fill('10');
 		await printDialog.getByLabel('Rebut').fill('2');
@@ -76,14 +76,15 @@ test.describe('dashboard spools', () => {
 	test('print history lists saved prints with filters and detail', async ({ page }) => {
 		await createSpool(page, 'History Source');
 
-		await page.getByRole('button', { name: 'Add print' }).click();
-		await page.getByLabel('Print name').fill('History calibration cube');
-		await page.getByLabel('Print date').fill('2026-05-04T00:30');
-		await page.getByLabel('Spool').selectOption({ label: 'History Source (1000 g)' });
-		await page.getByLabel('Used').fill('10');
-		await page.getByLabel('Waste').fill('2');
-		await page.getByRole('button', { name: 'Save print' }).click();
-		await expect(page.getByText('Print saved and spool inventory updated.')).toBeVisible();
+		await page.getByRole('button', { name: 'Ajouter une impression' }).click();
+		const printDialog = page.getByRole('dialog', { name: 'Ajouter une impression' });
+		await printDialog.getByLabel("Nom de l'impression").fill('History calibration cube');
+		await printDialog.getByLabel("Date d'impression").fill('2026-05-04T00:30');
+		await printDialog.getByLabel('Bobine').selectOption({ label: 'History Source (1000 g)' });
+		await printDialog.getByLabel('Utilisé').fill('10');
+		await printDialog.getByLabel('Rebut').fill('2');
+		await printDialog.getByRole('button', { name: /Enregistrer l[\u2019']impression/ }).click();
+		await expect(page.getByText('Impression enregistrée et stocks mis à jour.')).toBeVisible();
 
 		await page.goto('/prints');
 
