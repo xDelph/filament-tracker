@@ -11,6 +11,7 @@
     type = 'button',
     disabled = false,
     pressed,
+    form,
     onclick,
     class: className = '',
     children
@@ -20,6 +21,7 @@
     type?: ButtonType;
     disabled?: boolean;
     pressed?: boolean;
+    form?: string;
     onclick?: () => void;
     class?: string;
     children?: Snippet;
@@ -47,6 +49,7 @@
   ]}
   {type}
   {disabled}
+  {form}
   {onclick}
   aria-pressed={pressed}
 >

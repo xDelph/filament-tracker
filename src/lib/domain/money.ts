@@ -19,6 +19,14 @@ export const MoneyMinorSchema = z.object({
 
 export type MoneyMinor = z.infer<typeof MoneyMinorSchema>;
 
+/** Format stored minor units for display (locale defaults to French grouping rules). */
+export function formatMoneyMinor(amount: MoneyMinor, locale = 'fr-FR'): string {
+	return new Intl.NumberFormat(locale, {
+		style: 'currency',
+		currency: amount.currency,
+	}).format(amount.minorUnits / 100);
+}
+
 /**
  * Snapshot typique d’un achat de bobine ou d’une valeur stockée où un prix nul n’a pas lieu d’être.
  */

@@ -7,6 +7,7 @@
   type SpoolStatus = 'active' | 'low' | 'empty' | 'archived';
 
   type SpoolSummary = {
+    id?: string;
     name: string;
     material: string;
     brand?: string;
@@ -16,6 +17,9 @@
     initialWeightG: number;
     remainingValue?: string;
     status: SpoolStatus;
+    onEdit?: () => void;
+    onArchive?: () => void;
+    onMarkEmpty?: () => void;
   };
 
   let {
@@ -68,7 +72,9 @@
   </div>
 
   {#if !compact}
-    <div class="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
+    <div
+      class="mt-4 flex flex-col gap-3 border-t border-line pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+    >
       <p class="text-xs text-ink-muted">
         {#if spool.remainingValue}
           Value left <span class="font-semibold text-ink">{spool.remainingValue}</span>
@@ -76,10 +82,24 @@
           Initial weight <span class="font-semibold text-ink">{spool.initialWeightG} g</span>
         {/if}
       </p>
-      <Button size="sm" variant="secondary">
-        <Plus size={16} />
-        Print
-      </Button>
+      {#if spool.onEdit || spool.onArchive || spool.onMarkEmpty}
+        <div class="flex flex-wrap gap-2 sm:justify-end">
+          {#if spool.onEdit}
+            <Button size="sm" variant="secondary" onclick={spool.onEdit}>Edit</Button>
+          {/if}
+          {#if spool.onMarkEmpty}
+            <Button size="sm" variant="secondary" onclick={spool.onMarkEmpty}>Mark empty</Button>
+          {/if}
+          {#if spool.onArchive}
+            <Button size="sm" variant="danger" onclick={spool.onArchive}>Archive</Button>
+          {/if}
+        </div>
+      {:else}
+        <Button size="sm" variant="secondary">
+          <Plus size={16} />
+          Print
+        </Button>
+      {/if}
     </div>
   {/if}
 </article>

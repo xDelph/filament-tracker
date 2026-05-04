@@ -25,6 +25,20 @@ export function spoolCostPerGramMinorUnits(
 	return spool.purchasePrice.minorUnits / spool.initialWeightG;
 }
 
+/** Valeur résiduelle estimée (grammes restants × coût moyen au gramme), pour l’affichage inventaire. */
+export function remainingValueEstimateMinor(
+	spool: Pick<Spool, 'remainingWeightG' | 'initialWeightG' | 'purchasePrice'>,
+): MoneyMinor {
+	const rate = spoolCostPerGramMinorUnits(spool);
+	if (!Number.isFinite(rate)) {
+		return { minorUnits: 0, currency: spool.purchasePrice.currency };
+	}
+	return {
+		minorUnits: Math.max(0, Math.round(spool.remainingWeightG * rate)),
+		currency: spool.purchasePrice.currency,
+	};
+}
+
 /** Poids total facturé pour une ligne de consommation (utilisé + déchet). */
 export function consumptionTotalGrams(
 	usage: Pick<PrintFilamentUsage, 'usedWeightG' | 'wasteWeightG'>,
