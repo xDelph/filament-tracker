@@ -2,7 +2,11 @@ import 'fake-indexeddb/auto';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { fixtureSpoolPlaGrey } from '$lib/test/fixtures/domain-fixtures';
+import {
+	fixturePrintBenchy,
+	fixtureSpoolPlaGrey,
+	fixtureUsageBenchyGrey,
+} from '$lib/test/fixtures/domain-fixtures';
 
 import { FilamentTrackerDatabase } from './db';
 import { createSpoolAdjustment, listAdjustmentsForSpool } from './spool-adjustments';
@@ -39,6 +43,9 @@ describe('createSpoolAdjustment', () => {
 	});
 
 	it('positive adjustment: increases remaining weight without touching print history', async () => {
+		await database.prints.add(fixturePrintBenchy);
+		await database.printFilamentUsages.add(fixtureUsageBenchyGrey);
+
 		const { adjustment, spool } = await createSpoolAdjustment(
 			{
 				spoolId: fixtureSpoolPlaGrey.id,
@@ -54,6 +61,10 @@ describe('createSpoolAdjustment', () => {
 		expect(spool.remainingWeightG).toBe(700);
 
 		await expect(database.spoolAdjustments.count()).resolves.toBe(1);
+		await expect(database.prints.count()).resolves.toBe(1);
+		await expect(database.printFilamentUsages.count()).resolves.toBe(1);
+		const usageAfter = await database.printFilamentUsages.get(fixtureUsageBenchyGrey.id);
+		expect(usageAfter).toEqual(fixtureUsageBenchyGrey);
 	});
 
 	it('rejects identical remainder without persisting', async () => {
