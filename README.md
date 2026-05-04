@@ -33,6 +33,8 @@ bunx playwright install
 | `bun run test:unit` | Vitest only |
 | `bun run test:e2e` | Playwright only |
 
+The reusable UI component preview is available at `/design-system` while the MVP screens are assembled.
+
 To recreate this scaffold with the same add-ons:
 
 ```sh

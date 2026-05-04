@@ -15,6 +15,7 @@
 			<nav class="flex gap-4 text-sm">
 				<a href={resolve('/')} class="text-zinc-600 hover:text-zinc-900"> Home </a>
 				<a href={resolve('/dashboard')} class="text-zinc-600 hover:text-zinc-900"> Dashboard </a>
+				<a href={resolve('/design-system')} class="text-zinc-600 hover:text-zinc-900"> UI Kit </a>
 			</nav>
 		</div>
 	</header>
