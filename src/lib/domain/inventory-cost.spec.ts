@@ -1,0 +1,144 @@
+import { describe, expect, it } from 'vitest';
+
+import { PrintFilamentUsageSchema } from './print-filament-usage';
+import {
+	clampRemainingToInitialRange,
+	consumptionCostPerGramMinorUnits,
+	consumptionMaterialCost,
+	consumptionTotalGrams,
+	isLowStock,
+	materialCostForGramsAtSpoolRate,
+	remainingPercentOfInitial,
+	remainingWeightGrams,
+	spoolCostPerGramMinorUnits,
+	totalPrintMaterialCost,
+} from './inventory-cost';
+
+import {
+	fixtureSpoolFlex,
+	fixtureSpoolPlaGrey,
+	fixtureUsageBenchyGrey,
+} from '../test/fixtures/domain-fixtures';
+
+describe('inventory-cost', () => {
+	it('calcule le coût par gramme à partir du prix d’achat', () => {
+		expect(spoolCostPerGramMinorUnits(fixtureSpoolPlaGrey)).toBeCloseTo(2.499, 6);
+	});
+
+	it('retourne NaN si le poids initial est nul', () => {
+		const broken = { ...fixtureSpoolPlaGrey, initialWeightG: 0 };
+		expect(Number.isNaN(spoolCostPerGramMinorUnits(broken))).toBe(true);
+	});
+
+	it('estime le coût matière d’une consommation comme dans les fixtures', () => {
+		const grams = consumptionTotalGrams(fixtureUsageBenchyGrey);
+		expect(grams).toBeCloseTo(66.4, 6);
+
+		const estimated = materialCostForGramsAtSpoolRate(fixtureSpoolPlaGrey, grams);
+		expect(estimated).toEqual({
+			minorUnits: 166,
+			currency: 'EUR',
+		});
+		expect(consumptionMaterialCost(fixtureUsageBenchyGrey).minorUnits).toBe(166);
+	});
+
+	it('arrondit à l’entier le plus proche (0.5 vers le haut)', () => {
+		const spool = {
+			purchasePrice: { minorUnits: 3, currency: 'EUR' as const },
+			initialWeightG: 4,
+		};
+		expect(materialCostForGramsAtSpoolRate(spool, 1).minorUnits).toBe(1);
+		expect(materialCostForGramsAtSpoolRate(spool, 2).minorUnits).toBe(2);
+	});
+
+	it('retourne 0 centimes pour un poids négatif ou non fini', () => {
+		const costNeg = materialCostForGramsAtSpoolRate(fixtureSpoolPlaGrey, -10);
+		expect(costNeg.minorUnits).toBe(0);
+
+		const costNan = materialCostForGramsAtSpoolRate(fixtureSpoolPlaGrey, Number.NaN);
+		expect(costNan.minorUnits).toBe(0);
+	});
+
+	it('agrège le coût total d’une impression', () => {
+		const extra = PrintFilamentUsageSchema.parse({
+			...fixtureUsageBenchyGrey,
+			id: '123e4567-e89b-12d3-a456-426614174001',
+			spoolId: fixtureSpoolFlex.id,
+			cost: { minorUnits: 50, currency: 'EUR' },
+		});
+
+		const total = totalPrintMaterialCost(
+			[fixtureUsageBenchyGrey, extra],
+			'EUR',
+		);
+		expect(total).toEqual({ minorUnits: 216, currency: 'EUR' });
+	});
+
+	it('accepte une impression sans ligne avec devise explicite', () => {
+		expect(totalPrintMaterialCost([], 'EUR')).toEqual({
+			minorUnits: 0,
+			currency: 'EUR',
+		});
+	});
+
+	it('rejette un mélange de devises', () => {
+		const mixed = PrintFilamentUsageSchema.parse({
+			...fixtureUsageBenchyGrey,
+			id: '123e4567-e89b-12d3-a456-426614174002',
+			cost: { minorUnits: 10, currency: 'USD' },
+		});
+
+		expect(() =>
+			totalPrintMaterialCost([fixtureUsageBenchyGrey, mixed], 'EUR'),
+		).toThrowError(/mixed currency/i);
+	});
+
+	it('expose le poids total et le coût moyen par gramme pour une ligne', () => {
+		expect(consumptionTotalGrams(fixtureUsageBenchyGrey)).toBeCloseTo(66.4, 6);
+		expect(consumptionCostPerGramMinorUnits(fixtureUsageBenchyGrey)).toBeCloseTo(
+			166 / 66.4,
+			6,
+		);
+	});
+
+	it('retourne NaN si la consommation n’a aucun poids', () => {
+		const zeroGramsLine = {
+			usedWeightG: 0,
+			wasteWeightG: 0,
+			cost: fixtureUsageBenchyGrey.cost,
+		};
+		expect(Number.isNaN(consumptionCostPerGramMinorUnits(zeroGramsLine))).toBe(true);
+	});
+
+	it('calcule le pourcentage restant et expose le poids résiduel', () => {
+		expect(remainingWeightGrams(fixtureSpoolPlaGrey)).toBe(618.75);
+		expect(remainingPercentOfInitial(618.75, 1000)).toBeCloseTo(61.875, 6);
+		expect(Number.isNaN(remainingPercentOfInitial(100, 0))).toBe(true);
+	});
+
+	it('détecte le stock bas par seuils absolus ou relatifs', () => {
+		expect(
+			isLowStock(40, 1000, { maxRemainingGrams: 50 }),
+		).toBe(true);
+
+		expect(
+			isLowStock(60, 1000, { maxRemainingGrams: 50 }),
+		).toBe(false);
+
+		expect(
+			isLowStock(40, 1000, { maxRemainingPercent: 5 }),
+		).toBe(true);
+
+		expect(
+			isLowStock(100, 1000, { maxRemainingPercent: 5 }),
+		).toBe(false);
+
+		expect(isLowStock(500, 1000, {})).toBe(false);
+	});
+
+	it('borne le restant lorsque les entrées dépassent le poids initial', () => {
+		expect(clampRemainingToInitialRange(1200, 1000)).toBe(1000);
+		expect(clampRemainingToInitialRange(-10, 1000)).toBe(0);
+		expect(clampRemainingToInitialRange(Number.POSITIVE_INFINITY, 100)).toBe(100);
+	});
+});
