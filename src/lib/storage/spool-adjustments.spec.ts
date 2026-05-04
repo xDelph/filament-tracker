@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 describe('createSpoolAdjustment', () => {
-	it('records adjustment row and updates spool remainder', async () => {
+	it('negative adjustment: decreases remaining weight and keeps audit trail', async () => {
 		const { adjustment, spool } = await createSpoolAdjustment(
 			{
 				spoolId: fixtureSpoolPlaGrey.id,
@@ -32,7 +32,26 @@ describe('createSpoolAdjustment', () => {
 
 		expect(adjustment.previousRemainingWeightG).toBe(fixtureSpoolPlaGrey.remainingWeightG);
 		expect(adjustment.newRemainingWeightG).toBe(600);
+		expect(adjustment.newRemainingWeightG).toBeLessThan(adjustment.previousRemainingWeightG);
 		expect(spool.remainingWeightG).toBe(600);
+
+		await expect(database.spoolAdjustments.count()).resolves.toBe(1);
+	});
+
+	it('positive adjustment: increases remaining weight without touching print history', async () => {
+		const { adjustment, spool } = await createSpoolAdjustment(
+			{
+				spoolId: fixtureSpoolPlaGrey.id,
+				newRemainingWeightG: 700,
+				note: 'Corrected underestimate after partial wind-back.',
+			},
+			database,
+		);
+
+		expect(adjustment.previousRemainingWeightG).toBe(fixtureSpoolPlaGrey.remainingWeightG);
+		expect(adjustment.newRemainingWeightG).toBe(700);
+		expect(adjustment.newRemainingWeightG).toBeGreaterThan(adjustment.previousRemainingWeightG);
+		expect(spool.remainingWeightG).toBe(700);
 
 		await expect(database.spoolAdjustments.count()).resolves.toBe(1);
 	});
