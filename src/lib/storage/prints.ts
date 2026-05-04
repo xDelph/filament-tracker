@@ -106,6 +106,10 @@ export async function createPrintWithUsages(
 			const spool = spoolById.get(usageInput.spoolId)!;
 			const consumedG = usageInput.usedWeightG + usageInput.wasteWeightG;
 
+			if (spool.status !== 'active' && spool.status !== 'low') {
+				throw new PrintPersistenceError(`${spool.name} ne peut pas être utilisée pour une impression.`);
+			}
+
 			if (consumedG > spool.remainingWeightG) {
 				throw new PrintPersistenceError(
 					`${spool.name} ne contient plus assez de filament pour ${consumedG} g.`,

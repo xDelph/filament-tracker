@@ -86,4 +86,22 @@ describe('createPrintWithUsages', () => {
 			),
 		).rejects.toThrow(/une seule fois/i);
 	});
+
+	it('rejects non-printable spools even when they still have weight', async () => {
+		await database.spools.put({
+			...fixtureSpoolPlaGrey,
+			status: 'archived',
+			remainingWeightG: 500,
+		});
+
+		await expect(
+			createPrintWithUsages(
+				{
+					name: 'Archived spool',
+					usages: [{ spoolId: fixtureSpoolPlaGrey.id, usedWeightG: 10, wasteWeightG: 0 }],
+				},
+				database,
+			),
+		).rejects.toThrow(/ne peut pas être utilisée/i);
+	});
 });
