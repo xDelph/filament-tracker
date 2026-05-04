@@ -19,6 +19,7 @@
     remainingValue?: string;
     lastUsedText?: string;
     status: SpoolStatus;
+    detailHref?: string;
     onPrint?: () => void;
     onEdit?: () => void;
     onArchive?: () => void;
@@ -67,7 +68,13 @@
     <div class="min-w-0">
       <div class="flex items-center gap-2">
         <ColorSwatch color={spool.colorHex} label={spool.colorName} />
-        <h2 class="truncate text-sm font-semibold text-ink">{spool.name}</h2>
+        <h2 class="truncate text-sm font-semibold text-ink">
+          {#if spool.detailHref}
+            <a href={spool.detailHref} class="hover:underline">{spool.name}</a>
+          {:else}
+            {spool.name}
+          {/if}
+        </h2>
       </div>
       <p class="mt-1 truncate text-xs text-ink-muted">
         {[spool.brand, spool.material, spool.colorName].filter(Boolean).join(' / ')}

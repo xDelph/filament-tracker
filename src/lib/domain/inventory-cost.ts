@@ -1,6 +1,7 @@
 import type { MoneyMinor } from './money';
 import type { PrintFilamentUsage } from './print-filament-usage';
 import type { Spool } from './spool';
+import type { SpoolStatus } from './enums';
 
 const ISO_4217_ALPHA3 = /^[A-Z]{3}$/;
 
@@ -176,6 +177,31 @@ export function isLowStock(
 	}
 
 	return false;
+}
+
+/** Aligné sur les seuils utilisés lors de l’enregistrement d’impressions (stock bas / vide). */
+export const DEFAULT_LOW_STOCK_THRESHOLDS: LowStockOptions = {
+	maxRemainingGrams: 100,
+	maxRemainingPercent: 15,
+};
+
+/**
+ * Statut bobine après mise à jour du poids restant (impression ou ajustement manuel).
+ */
+export function spoolStatusAfterRemainderChange(
+	spool: Pick<Spool, 'status' | 'initialWeightG'>,
+	remainingWeightG: number,
+	thresholds: LowStockOptions = DEFAULT_LOW_STOCK_THRESHOLDS,
+): SpoolStatus {
+	if (spool.status === 'archived') {
+		return spool.status;
+	}
+
+	if (remainingWeightG <= 0) {
+		return 'empty';
+	}
+
+	return isLowStock(remainingWeightG, spool.initialWeightG, thresholds) ? 'low' : 'active';
 }
 
 /**

@@ -14,6 +14,7 @@ export {
 	QuickPrintCreateInputSchema,
 	createPrintWithUsages,
 	listPrintUsages,
+	listPrintUsagesForSpool,
 	listPrints,
 	type CreatePrintResult,
 	type QuickPrintCreateInput,
@@ -26,3 +27,9 @@ export {
 	remainingValueLabel,
 	seedFixtureSpools,
 } from './spools';
+export {
+	createSpoolAdjustment,
+	listAdjustmentsForSpool,
+	SpoolAdjustmentPersistenceError,
+} from './spool-adjustments';
+export { loadSpoolAuditData, type SpoolUsageWithPrint } from './spool-detail';

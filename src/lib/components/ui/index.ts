@@ -1,3 +1,4 @@
+export { default as AddPrintModal } from './AddPrintModal.svelte';
 export { default as Button } from './Button.svelte';
 export { default as ColorSwatch } from './ColorSwatch.svelte';
 export { default as IconButton } from './IconButton.svelte';

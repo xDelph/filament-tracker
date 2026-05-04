@@ -28,12 +28,14 @@ export {
 	consumptionCostPerGramMinorUnits,
 	consumptionMaterialCost,
 	consumptionTotalGrams,
+	DEFAULT_LOW_STOCK_THRESHOLDS,
 	isLowStock,
 	materialCostForGramsAtSpoolRate,
 	remainingPercentOfInitial,
 	remainingValueEstimateMinor,
 	remainingWeightGrams,
 	spoolCostPerGramMinorUnits,
+	spoolStatusAfterRemainderChange,
 	totalPrintMaterialCost,
 } from './inventory-cost';
 

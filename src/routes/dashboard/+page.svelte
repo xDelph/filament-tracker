@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { liveQuery } from 'dexie';
-	import { Plus, Trash2 } from 'lucide-svelte';
+	import { Plus } from 'lucide-svelte';
 
+	import { resolve } from '$app/paths';
 	import {
 		buildLastUsedMsBySpoolId,
 		filterDashboardSpools,
@@ -12,7 +13,7 @@
 		type DashboardSpoolFilters,
 		type DashboardSpoolSort,
 	} from '$lib/dashboard/spool-inventory-view';
-	import { Button, Modal, NumberInput, Select, SpoolForm, SpoolList, TextInput } from '$lib/components/ui';
+	import { Button, Modal, AddPrintModal, Select, SpoolForm, SpoolList } from '$lib/components/ui';
 	import type { Print, PrintFilamentUsage, PrintStatus, Spool } from '$lib/domain';
 	import {
 		formatMoneyMinor,
@@ -20,22 +21,12 @@
 		remainingValueEstimateMinor,
 	} from '$lib/domain';
 	import {
-		PRINT_STATUS_OPTIONS,
-		PrintPersistenceError,
 		archiveSpool,
-		createPrintWithUsages,
 		listActiveInventorySpools,
 		listPrintUsages,
 		listPrints,
 		markSpoolEmpty,
 	} from '$lib/storage';
-
-	type UsageFormRow = {
-		id: string;
-		spoolId: string;
-		usedWeightG?: number;
-		wasteWeightG?: number;
-	};
 
 	let spools = $state<Spool[]>([]);
 	let prints = $state<Print[]>([]);
@@ -142,17 +133,18 @@
 	let spoolModalNonce = $state(0);
 
 	const spoolFormId = 'dashboard-spool-form';
-	const printFormId = 'dashboard-print-form';
 
 	let printModalOpen = $state(false);
-	let savingPrint = $state(false);
-	let printFormError = $state('');
+	let printModalInitialSpoolId = $state('');
 	let successMessage = $state('');
-	let printName = $state('');
-	let status = $state<PrintStatus>('completed');
-	let printedAt = $state(localDateTimeInputValue());
-	let notes = $state('');
-	let usageRows = $state<UsageFormRow[]>([emptyUsageRow()]);
+
+	$effect(() => {
+		if (!successMessage) return;
+		const timer = setTimeout(() => {
+			successMessage = '';
+		}, 4500);
+		return () => clearTimeout(timer);
+	});
 
 	let spoolForEditForm = $derived(
 		editingSpoolId
@@ -216,28 +208,9 @@
 		editingSpoolFallback = null;
 	}
 
-	function localDateTimeInputValue(date = new Date()): string {
-		const offsetMs = date.getTimezoneOffset() * 60_000;
-		return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-	}
-
-	function emptyUsageRow(spoolId = ''): UsageFormRow {
-		return {
-			id: crypto.randomUUID(),
-			spoolId,
-			usedWeightG: undefined,
-			wasteWeightG: 0,
-		};
-	}
-
 	function openPrintModal(spoolId = ''): void {
-		printFormError = '';
 		successMessage = '';
-		printName = '';
-		status = 'completed';
-		printedAt = localDateTimeInputValue();
-		notes = '';
-		usageRows = [emptyUsageRow(spoolId)];
+		printModalInitialSpoolId = spoolId;
 		printModalOpen = true;
 	}
 
@@ -245,24 +218,8 @@
 		printModalOpen = false;
 	}
 
-	function addUsageRow(): void {
-		usageRows = [...usageRows, emptyUsageRow()];
-	}
-
-	function removeUsageRow(rowId: string): void {
-		if (usageRows.length === 1) {
-			return;
-		}
-
-		usageRows = usageRows.filter((row) => row.id !== rowId);
-	}
-
 	function materialLabel(s: Spool): string {
 		return s.material.kind === 'catalog' ? s.material.code : s.material.label;
-	}
-
-	function selectedSpoolName(spoolId: string): string {
-		return spools.find((spool) => spool.id === spoolId)?.name ?? 'Bobine';
 	}
 
 	function remainingPercentLabelForSpool(s: Spool): string {
@@ -290,6 +247,7 @@
 			remainingValue: formatMoneyMinor(remainingMinor),
 			lastUsedText:
 				lastMs !== undefined ? formatLastUsedRelative(lastMs, nowMs) ?? '—' : 'Jamais',
+			detailHref: resolve(`/spools/${s.id}`),
 			status: s.status,
 			onPrint: () => openPrintModal(s.id),
 			onEdit: () => openEdit(s),
@@ -310,40 +268,6 @@
 	}
 
 	let spoolSummaries = $derived(sortedSpools.map((s) => toSummary(s, Date.now())));
-
-	async function handlePrintSubmit(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
-		printFormError = '';
-		successMessage = '';
-		savingPrint = true;
-
-		try {
-			await createPrintWithUsages({
-				name: printName.trim(),
-				printedAt: new Date(printedAt).toISOString(),
-				status,
-				notes: notes.trim() || undefined,
-				usages: usageRows.map((row) => ({
-					spoolId: row.spoolId,
-					usedWeightG: Number(row.usedWeightG),
-					wasteWeightG: Number(row.wasteWeightG ?? 0),
-				})),
-			});
-
-			successMessage = 'Impression enregistrée et stocks mis à jour.';
-			closePrintModal();
-		} catch (error) {
-			if (error instanceof PrintPersistenceError) {
-				printFormError = error.message;
-			} else if (error instanceof Error) {
-				printFormError = error.message;
-			} else {
-				printFormError = 'Impossible d’enregistrer cette impression.';
-			}
-		} finally {
-			savingPrint = false;
-		}
-	}
 </script>
 
 <div class="grid gap-6">
@@ -504,97 +428,36 @@
 		{/snippet}
 	</Modal>
 
-	<Modal
+	<AddPrintModal
+		idPrefix="dashboard-print"
 		open={printModalOpen}
-		title="Ajouter une impression"
-		description="Enregistrez la consommation et mettez à jour les poids des bobines."
+		spoolOptions={spoolOptions}
+		initialSpoolId={printModalInitialSpoolId}
+		disableSubmit={spools.length === 0}
+		uiLabels={{
+			modalTitle: 'Ajouter une impression',
+			modalDescription: 'Enregistrez la consommation et mettez à jour les poids des bobines.',
+			printNameLabel: "Nom de l'impression",
+			printDateLabel: "Date d'impression",
+			statusLabel: 'Statut',
+			notesLabel: 'Notes',
+			notesPlaceholder: 'Optionnel',
+			filamentUsageHeading: 'Consommation par bobine',
+			addSpoolRowButton: 'Bobine',
+			spoolSelectLabel: 'Bobine',
+			spoolPlaceholder: 'Choisir une bobine',
+			usedLabel: 'Utilisé',
+			wasteLabel: 'Rebut',
+			removeRowAriaPrefix: 'Retirer',
+			genericSpoolName: 'Bobine',
+			cancelButton: 'Annuler',
+			savePrintButton: "Enregistrer l'impression",
+			savingPrintButton: 'Enregistrement…',
+			genericSaveError: "Impossible d'enregistrer cette impression.",
+		}}
 		onClose={closePrintModal}
-	>
-		<form id={printFormId} class="grid gap-4" onsubmit={handlePrintSubmit}>
-			{#if printFormError}
-				<p class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger">
-					{printFormError}
-				</p>
-			{/if}
-
-			<div class="grid gap-3 sm:grid-cols-2">
-				<TextInput id="print-name" label="Nom de l’impression" bind:value={printName} required />
-				<label class="grid gap-1.5 text-sm font-medium text-ink" for="printed-at">
-					<span>Date d’impression</span>
-					<input
-						id="printed-at"
-						class="h-9 rounded-md border border-line bg-panel px-3 text-sm text-ink shadow-sm"
-						type="datetime-local"
-						bind:value={printedAt}
-						required
-					/>
-				</label>
-				<Select
-					id="print-status"
-					label="Statut"
-					bind:value={status}
-					options={PRINT_STATUS_OPTIONS}
-					required
-				/>
-				<TextInput id="print-notes" label="Notes" bind:value={notes} placeholder="Optionnel" />
-			</div>
-
-			<div class="grid gap-3">
-				<div class="flex items-center justify-between gap-3">
-					<h3 class="text-sm font-semibold text-ink">Consommation par bobine</h3>
-					<Button variant="secondary" size="sm" onclick={addUsageRow}>
-						<Plus size={16} />
-						Bobine
-					</Button>
-				</div>
-
-				{#each usageRows as row (row.id)}
-					<div
-						class="grid gap-3 rounded-lg border border-line bg-panel-muted p-3 sm:grid-cols-[1fr_8rem_8rem_auto] sm:items-end"
-					>
-						<Select
-							id={`spool-${row.id}`}
-							label="Bobine"
-							bind:value={row.spoolId}
-							options={spoolOptions}
-							placeholder="Choisir une bobine"
-							required
-						/>
-						<NumberInput
-							id={`used-${row.id}`}
-							label="Utilisé"
-							bind:value={row.usedWeightG}
-							min={0.01}
-							step="any"
-							unit="g"
-							required
-						/>
-						<NumberInput
-							id={`waste-${row.id}`}
-							label="Rebut"
-							bind:value={row.wasteWeightG}
-							min={0}
-							step="any"
-							unit="g"
-						/>
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={usageRows.length === 1}
-							onclick={() => removeUsageRow(row.id)}
-						>
-							<Trash2 size={16} />
-							<span class="sr-only">Retirer {selectedSpoolName(row.spoolId)}</span>
-						</Button>
-					</div>
-				{/each}
-			</div>
-		</form>
-		{#snippet footer()}
-			<Button variant="ghost" onclick={closePrintModal}>Annuler</Button>
-			<Button type="submit" form={printFormId} disabled={savingPrint || spools.length === 0}>
-				{savingPrint ? 'Enregistrement…' : 'Enregistrer l’impression'}
-			</Button>
-		{/snippet}
-	</Modal>
+		onSaved={() => {
+			successMessage = 'Impression enregistrée et stocks mis à jour.';
+		}}
+	/>
 </div>
