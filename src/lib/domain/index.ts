@@ -21,6 +21,21 @@ export { MoneyMinorPurchaseSchema, MoneyMinorSchema } from './money';
 
 export { finiteNonNegativeGrams, finitePositiveGrams } from './weights';
 
+export type { LowStockOptions } from './inventory-cost';
+
+export {
+	clampRemainingToInitialRange,
+	consumptionCostPerGramMinorUnits,
+	consumptionMaterialCost,
+	consumptionTotalGrams,
+	isLowStock,
+	materialCostForGramsAtSpoolRate,
+	remainingPercentOfInitial,
+	remainingWeightGrams,
+	spoolCostPerGramMinorUnits,
+	totalPrintMaterialCost,
+} from './inventory-cost';
+
 export type { Print, PrintCreateInput, PrintUpdateInput } from './print';
 
 export { PrintSchema, PrintCreateInputSchema, PrintUpdateInputSchema } from './print';
