@@ -9,6 +9,7 @@ import {
 	isLowStock,
 	materialCostForGramsAtSpoolRate,
 	remainingPercentOfInitial,
+	remainingValueEstimateMinor,
 	remainingWeightGrams,
 	spoolCostPerGramMinorUnits,
 	totalPrintMaterialCost,
@@ -23,6 +24,14 @@ import {
 describe('inventory-cost', () => {
 	it('calcule le coût par gramme à partir du prix d’achat', () => {
 		expect(spoolCostPerGramMinorUnits(fixtureSpoolPlaGrey)).toBeCloseTo(2.499, 6);
+	});
+
+	it('estime la valeur résiduelle proportionnelle au restant', () => {
+		expect(remainingValueEstimateMinor(fixtureSpoolPlaGrey)).toEqual({
+			minorUnits: 1546,
+			currency: 'EUR',
+		});
+		expect(remainingValueEstimateMinor(fixtureSpoolFlex).minorUnits).toBe(0);
 	});
 
 	it('retourne NaN si le poids initial est nul', () => {

@@ -17,7 +17,7 @@ export { optionalClearablePurchaseDate, PurchaseDateInputSchema } from './dates'
 
 export type { MoneyMinor } from './money';
 
-export { MoneyMinorPurchaseSchema, MoneyMinorSchema } from './money';
+export { formatMoneyMinor, MoneyMinorPurchaseSchema, MoneyMinorSchema } from './money';
 
 export { finiteNonNegativeGrams, finitePositiveGrams } from './weights';
 
@@ -31,6 +31,7 @@ export {
 	isLowStock,
 	materialCostForGramsAtSpoolRate,
 	remainingPercentOfInitial,
+	remainingValueEstimateMinor,
 	remainingWeightGrams,
 	spoolCostPerGramMinorUnits,
 	totalPrintMaterialCost,

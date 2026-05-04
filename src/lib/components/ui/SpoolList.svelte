@@ -4,6 +4,7 @@
   type SpoolStatus = 'active' | 'low' | 'empty' | 'archived';
 
   type SpoolSummary = {
+    id?: string;
     name: string;
     material: string;
     brand?: string;
@@ -13,6 +14,9 @@
     initialWeightG: number;
     remainingValue?: string;
     status: SpoolStatus;
+    onEdit?: () => void;
+    onArchive?: () => void;
+    onMarkEmpty?: () => void;
   };
 
   let {
