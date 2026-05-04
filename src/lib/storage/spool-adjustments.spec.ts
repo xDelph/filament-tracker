@@ -2,7 +2,11 @@ import 'fake-indexeddb/auto';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { fixtureSpoolPlaGrey } from '$lib/test/fixtures/domain-fixtures';
+import {
+	fixturePrintBenchy,
+	fixtureSpoolPlaGrey,
+	fixtureUsageBenchyGrey,
+} from '$lib/test/fixtures/domain-fixtures';
 
 import { FilamentTrackerDatabase } from './db';
 import { createSpoolAdjustment, listAdjustmentsForSpool } from './spool-adjustments';
@@ -20,7 +24,7 @@ afterEach(async () => {
 });
 
 describe('createSpoolAdjustment', () => {
-	it('records adjustment row and updates spool remainder', async () => {
+	it('negative adjustment: decreases remaining weight and keeps audit trail', async () => {
 		const { adjustment, spool } = await createSpoolAdjustment(
 			{
 				spoolId: fixtureSpoolPlaGrey.id,
@@ -32,9 +36,35 @@ describe('createSpoolAdjustment', () => {
 
 		expect(adjustment.previousRemainingWeightG).toBe(fixtureSpoolPlaGrey.remainingWeightG);
 		expect(adjustment.newRemainingWeightG).toBe(600);
+		expect(adjustment.newRemainingWeightG).toBeLessThan(adjustment.previousRemainingWeightG);
 		expect(spool.remainingWeightG).toBe(600);
 
 		await expect(database.spoolAdjustments.count()).resolves.toBe(1);
+	});
+
+	it('positive adjustment: increases remaining weight without touching print history', async () => {
+		await database.prints.add(fixturePrintBenchy);
+		await database.printFilamentUsages.add(fixtureUsageBenchyGrey);
+
+		const { adjustment, spool } = await createSpoolAdjustment(
+			{
+				spoolId: fixtureSpoolPlaGrey.id,
+				newRemainingWeightG: 700,
+				note: 'Corrected underestimate after partial wind-back.',
+			},
+			database,
+		);
+
+		expect(adjustment.previousRemainingWeightG).toBe(fixtureSpoolPlaGrey.remainingWeightG);
+		expect(adjustment.newRemainingWeightG).toBe(700);
+		expect(adjustment.newRemainingWeightG).toBeGreaterThan(adjustment.previousRemainingWeightG);
+		expect(spool.remainingWeightG).toBe(700);
+
+		await expect(database.spoolAdjustments.count()).resolves.toBe(1);
+		await expect(database.prints.count()).resolves.toBe(1);
+		await expect(database.printFilamentUsages.count()).resolves.toBe(1);
+		const usageAfter = await database.printFilamentUsages.get(fixtureUsageBenchyGrey.id);
+		expect(usageAfter).toEqual(fixtureUsageBenchyGrey);
 	});
 
 	it('rejects identical remainder without persisting', async () => {
