@@ -15,7 +15,8 @@ import {
 
 import { db, type FilamentTrackerDatabase } from './db';
 
-const LOW_STOCK_THRESHOLDS = {
+/** Aligné avec la détection « stock bas » côté impressions et filtres tableau de bord. */
+export const LOW_STOCK_THRESHOLDS = {
 	maxRemainingGrams: 100,
 	maxRemainingPercent: 15,
 } as const;
