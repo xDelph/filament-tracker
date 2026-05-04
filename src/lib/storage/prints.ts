@@ -15,7 +15,8 @@ import {
 
 import { db, type FilamentTrackerDatabase } from './db';
 
-const LOW_STOCK_THRESHOLDS = {
+/** Aligné avec la détection « stock bas » côté impressions et filtres tableau de bord. */
+export const LOW_STOCK_THRESHOLDS = {
 	maxRemainingGrams: 100,
 	maxRemainingPercent: 15,
 } as const;
@@ -164,7 +165,7 @@ export async function listPrintUsages(
 }
 
 export const PRINT_STATUS_OPTIONS: Array<{ value: PrintStatus; label: string }> = [
-	{ value: 'completed', label: 'Completed' },
-	{ value: 'failed', label: 'Failed' },
-	{ value: 'cancelled', label: 'Cancelled' },
+	{ value: 'completed', label: 'Terminée' },
+	{ value: 'failed', label: 'Échouée' },
+	{ value: 'cancelled', label: 'Annulée' },
 ];
