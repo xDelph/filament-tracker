@@ -7,7 +7,7 @@ import {
 	type SpoolUpdateInput,
 } from '$lib/domain';
 
-import { db } from './db';
+import { db, type FilamentTrackerDatabase } from './db';
 
 /** Raw patch contained `purchaseDate: ''` before Zod strips it — persist clearing the field. */
 function patchClearsPurchaseDate(patch: unknown): boolean {
@@ -95,8 +95,8 @@ export async function updateSpool(id: string, patch: unknown): Promise<Spool> {
 	return updated;
 }
 
-export async function getSpool(id: string): Promise<Spool | undefined> {
-	return db.spools.get(id);
+export async function getSpool(id: string, database: FilamentTrackerDatabase = db): Promise<Spool | undefined> {
+	return database.spools.get(id);
 }
 
 /** Bobines visibles dans l’inventaire principal : actives ou stock bas. */

@@ -1,27 +1,27 @@
 <script lang="ts">
 	import { liveQuery } from 'dexie';
 	import { ZodError } from 'zod';
-	import { ArrowLeft, Plus, Trash2 } from 'lucide-svelte';
+	import { ArrowLeft, Plus } from 'lucide-svelte';
 
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { Button, Modal, NumberInput, Select, SpoolForm, TextInput } from '$lib/components/ui';
-	import type { PrintStatus, Spool, SpoolAdjustment } from '$lib/domain';
+	import { Button, Modal, AddPrintModal, NumberInput, SpoolForm, TextInput } from '$lib/components/ui';
+	import { DISPLAY_LOCALE } from '$lib/display';
 	import {
 		consumptionTotalGrams,
 		formatMoneyMinor,
 		remainingPercentOfInitial,
 		remainingValueEstimateMinor,
 		spoolCostPerGramMinorUnits,
+		type Spool,
+		type SpoolAdjustment,
 	} from '$lib/domain';
 	import {
-		PRINT_STATUS_OPTIONS,
-		PrintPersistenceError,
 		SpoolAdjustmentPersistenceError,
 		type SpoolUsageWithPrint,
 		archiveSpool,
-		createPrintWithUsages,
 		createSpoolAdjustment,
+		db,
 		listPrintableSpools,
 		loadSpoolAuditData,
 		markSpoolEmpty,
@@ -43,15 +43,7 @@
 	const spoolFormId = 'spool-detail-form';
 
 	let printModalOpen = $state(false);
-	let savingPrint = $state(false);
-	let printFormError = $state('');
-	const printFormId = 'spool-detail-print-form';
-	let printName = $state('');
-	let printStatus = $state<PrintStatus>('completed');
-	let printedAt = $state('');
-	let printNotes = $state('');
-	type UsageRow = { id: string; spoolId: string; usedWeightG?: number; wasteWeightG?: number };
-	let usageRows = $state<UsageRow[]>([]);
+	let printModalInitialSpoolId = $state('');
 
 	let adjustModalOpen = $state(false);
 	let savingAdjust = $state(false);
@@ -62,8 +54,21 @@
 	let bannerMessage = $state('');
 
 	$effect(() => {
+		void spoolId;
+		bannerMessage = '';
+	});
+
+	$effect(() => {
+		if (!bannerMessage) return;
+		const timer = setTimeout(() => {
+			bannerMessage = '';
+		}, 4500);
+		return () => clearTimeout(timer);
+	});
+
+	$effect(() => {
 		const id = spoolId;
-		const subscription = liveQuery(() => loadSpoolAuditData(id)).subscribe((data) => {
+		const subscription = liveQuery(() => loadSpoolAuditData(id, db)).subscribe((data) => {
 			audit = data;
 		});
 		return () => subscription.unsubscribe();
@@ -108,7 +113,7 @@
 		const rate = spoolCostPerGramMinorUnits(s);
 		if (!Number.isFinite(rate)) return '—';
 		const majorPerGram = rate / 100;
-		return new Intl.NumberFormat('fr-FR', {
+		return new Intl.NumberFormat(DISPLAY_LOCALE, {
 			style: 'currency',
 			currency: s.purchasePrice.currency,
 			minimumFractionDigits: 3,
@@ -120,22 +125,8 @@
 		audit.spool ? audit.spool.status === 'active' || audit.spool.status === 'low' : false,
 	);
 
-	function localDateTimeInputValue(date = new Date()): string {
-		const offsetMs = date.getTimezoneOffset() * 60_000;
-		return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-	}
-
-	function emptyUsageRow(spool = ''): UsageRow {
-		return {
-			id: crypto.randomUUID(),
-			spoolId: spool,
-			usedWeightG: undefined,
-			wasteWeightG: 0,
-		};
-	}
-
 	function formatTs(iso: string): string {
-		return new Date(iso).toLocaleString('fr-FR', {
+		return new Date(iso).toLocaleString(DISPLAY_LOCALE, {
 			dateStyle: 'short',
 			timeStyle: 'short',
 		});
@@ -146,26 +137,12 @@
 	}
 
 	function openPrintModal(preselectSpoolId = ''): void {
-		printFormError = '';
-		printName = '';
-		printStatus = 'completed';
-		printedAt = localDateTimeInputValue();
-		printNotes = '';
-		usageRows = [emptyUsageRow(preselectSpoolId || audit.spool?.id || '')];
+		printModalInitialSpoolId = preselectSpoolId || audit.spool?.id || '';
 		printModalOpen = true;
 	}
 
 	function closePrintModal(): void {
 		printModalOpen = false;
-	}
-
-	function addUsageRow(): void {
-		usageRows = [...usageRows, emptyUsageRow()];
-	}
-
-	function removeUsageRow(rowId: string): void {
-		if (usageRows.length === 1) return;
-		usageRows = usageRows.filter((r) => r.id !== rowId);
 	}
 
 	function openAdjustModal(): void {
@@ -181,38 +158,6 @@
 
 	function closeSpoolModal(): void {
 		spoolModalOpen = false;
-	}
-
-	async function handlePrintSubmit(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
-		printFormError = '';
-		savingPrint = true;
-
-		try {
-			await createPrintWithUsages({
-				name: printName.trim(),
-				printedAt: new Date(printedAt).toISOString(),
-				status: printStatus,
-				notes: printNotes.trim() || undefined,
-				usages: usageRows.map((row) => ({
-					spoolId: row.spoolId,
-					usedWeightG: Number(row.usedWeightG),
-					wasteWeightG: Number(row.wasteWeightG ?? 0),
-				})),
-			});
-			bannerMessage = 'Print saved and inventory updated.';
-			closePrintModal();
-		} catch (error) {
-			if (error instanceof PrintPersistenceError) {
-				printFormError = error.message;
-			} else if (error instanceof Error) {
-				printFormError = error.message;
-			} else {
-				printFormError = 'Unable to save this print.';
-			}
-		} finally {
-			savingPrint = false;
-		}
 	}
 
 	async function handleAdjustSubmit(event: SubmitEvent): Promise<void> {
@@ -326,7 +271,12 @@
 						</div>
 						<div>
 							<dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Used (est.)</dt>
-							<dd class="mt-1 text-lg font-semibold text-ink">{usedWeightG} g</dd>
+							<dd class="mt-1">
+								<p class="text-lg font-semibold text-ink">{usedWeightG} g</p>
+								<p class="mt-0.5 text-xs text-ink-muted">
+									Initial minus current remainder; not summed from print lines.
+								</p>
+							</dd>
 						</div>
 						<div>
 							<dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">
@@ -492,99 +442,17 @@
 			{/snippet}
 		</Modal>
 
-		<Modal
+		<AddPrintModal
+			idPrefix="spool-detail-print"
 			open={printModalOpen}
-			title="Add print"
-			description="Save consumption and update spool weights."
+			spoolOptions={printSpoolOptions}
+			initialSpoolId={printModalInitialSpoolId}
+			disableSubmit={printSpoolOptions.length === 0}
 			onClose={closePrintModal}
-		>
-			<form id={printFormId} class="grid gap-4" onsubmit={handlePrintSubmit}>
-				{#if printFormError}
-					<p
-						class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger"
-					>
-						{printFormError}
-					</p>
-				{/if}
-
-				<div class="grid gap-3 sm:grid-cols-2">
-					<TextInput id="detail-print-name" label="Print name" bind:value={printName} required />
-					<label class="grid gap-1.5 text-sm font-medium text-ink" for="detail-printed-at">
-						<span>Print date</span>
-						<input
-							id="detail-printed-at"
-							class="h-9 rounded-md border border-line bg-panel px-3 text-sm text-ink shadow-sm"
-							type="datetime-local"
-							bind:value={printedAt}
-							required
-						/>
-					</label>
-					<Select
-						id="detail-print-status"
-						label="Status"
-						bind:value={printStatus}
-						options={PRINT_STATUS_OPTIONS}
-						required
-					/>
-					<TextInput id="detail-print-notes" label="Notes" bind:value={printNotes} placeholder="Optional" />
-				</div>
-
-				<div class="grid gap-3">
-					<div class="flex items-center justify-between gap-3">
-						<h3 class="text-sm font-semibold text-ink">Filament usage</h3>
-						<Button variant="secondary" size="sm" onclick={addUsageRow}>
-							<Plus size={16} /> Spool
-						</Button>
-					</div>
-
-					{#each usageRows as row (row.id)}
-						<div
-							class="grid gap-3 rounded-lg border border-line bg-panel-muted p-3 sm:grid-cols-[1fr_8rem_8rem_auto] sm:items-end"
-						>
-							<Select
-								id={`detail-spool-${row.id}`}
-								label="Spool"
-								bind:value={row.spoolId}
-								options={printSpoolOptions}
-								placeholder="Choose spool"
-								required
-							/>
-							<NumberInput
-								id={`detail-used-${row.id}`}
-								label="Used"
-								bind:value={row.usedWeightG}
-								min={0.01}
-								step="any"
-								unit="g"
-								required
-							/>
-							<NumberInput
-								id={`detail-waste-${row.id}`}
-								label="Waste"
-								bind:value={row.wasteWeightG}
-								min={0}
-								step="any"
-								unit="g"
-							/>
-							<Button
-								variant="ghost"
-								size="sm"
-								disabled={usageRows.length === 1}
-								onclick={() => removeUsageRow(row.id)}
-							>
-								<Trash2 size={16} />
-							</Button>
-						</div>
-					{/each}
-				</div>
-			</form>
-			{#snippet footer()}
-				<Button variant="ghost" onclick={closePrintModal}>Cancel</Button>
-				<Button type="submit" form={printFormId} disabled={savingPrint || printSpoolOptions.length === 0}>
-					{savingPrint ? 'Saving...' : 'Save print'}
-				</Button>
-			{/snippet}
-		</Modal>
+			onSaved={() => {
+				bannerMessage = 'Print saved and inventory updated.';
+			}}
+		/>
 
 		<Modal
 			open={adjustModalOpen}

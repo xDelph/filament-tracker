@@ -52,21 +52,21 @@ describe('createSpoolAdjustment', () => {
 		await expect(database.spoolAdjustments.count()).resolves.toBe(0);
 	});
 
-	it('clamps remainder above initial to initial weight', async () => {
-		await createSpoolAdjustment(
-			{
-				spoolId: fixtureSpoolPlaGrey.id,
-				newRemainingWeightG: 9_999,
-				note: 'Above capacity.',
-			},
-			database,
-		);
+	it('rejects remainder above initial weight without persisting', async () => {
+		await expect(
+			createSpoolAdjustment(
+				{
+					spoolId: fixtureSpoolPlaGrey.id,
+					newRemainingWeightG: 9_999,
+					note: 'Above capacity.',
+				},
+				database,
+			),
+		).rejects.toThrow(/poids initial/i);
 
+		await expect(database.spoolAdjustments.count()).resolves.toBe(0);
 		const stored = await database.spools.get(fixtureSpoolPlaGrey.id);
-		expect(stored?.remainingWeightG).toBe(fixtureSpoolPlaGrey.initialWeightG);
-
-		const [adj] = await listAdjustmentsForSpool(fixtureSpoolPlaGrey.id, database);
-		expect(adj!.newRemainingWeightG).toBe(fixtureSpoolPlaGrey.initialWeightG);
+		expect(stored?.remainingWeightG).toBe(fixtureSpoolPlaGrey.remainingWeightG);
 	});
 });
 

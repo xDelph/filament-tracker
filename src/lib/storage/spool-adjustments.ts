@@ -29,6 +29,12 @@ export async function createSpoolAdjustment(
 			throw new SpoolAdjustmentPersistenceError('Bobine introuvable.');
 		}
 
+		if (parsed.newRemainingWeightG > spool.initialWeightG) {
+			throw new SpoolAdjustmentPersistenceError(
+				`Le reste ne peut pas dépasser le poids initial (${spool.initialWeightG} g).`,
+			);
+		}
+
 		const previousRemainingWeightG = spool.remainingWeightG;
 		const newRemainingWeightG = clampRemainingToInitialRange(
 			parsed.newRemainingWeightG,
