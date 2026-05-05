@@ -104,4 +104,25 @@ describe('createPrintWithUsages', () => {
 			),
 		).rejects.toThrow(/ne peut pas être utilisée/i);
 	});
+
+	it('accepts consumption exactly equal to remaining weight (non-régression sur-consumption)', async () => {
+		await database.spools.put({
+			...fixtureSpoolFlex,
+			remainingWeightG: 10,
+			status: 'low',
+		});
+
+		const result = await createPrintWithUsages(
+			{
+				name: 'Exact remainder',
+				usages: [{ spoolId: fixtureSpoolFlex.id, usedWeightG: 10, wasteWeightG: 0 }],
+			},
+			database,
+		);
+
+		const flex = await database.spools.get(fixtureSpoolFlex.id);
+		expect(flex?.remainingWeightG).toBe(0);
+		expect(flex?.status).toBe('empty');
+		expect(result.usages).toHaveLength(1);
+	});
 });

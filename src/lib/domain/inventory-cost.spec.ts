@@ -12,6 +12,7 @@ import {
 	remainingValueEstimateMinor,
 	remainingWeightGrams,
 	spoolCostPerGramMinorUnits,
+	spoolStatusAfterRemainderChange,
 	totalPrintMaterialCost,
 } from './inventory-cost';
 
@@ -167,5 +168,38 @@ describe('inventory-cost', () => {
 		expect(clampRemainingToInitialRange(1200, 1000)).toBe(1000);
 		expect(clampRemainingToInitialRange(-10, 1000)).toBe(0);
 		expect(clampRemainingToInitialRange(Number.POSITIVE_INFINITY, 100)).toBe(100);
+	});
+});
+
+describe('spoolStatusAfterRemainderChange', () => {
+	const active1000 = { status: 'active' as const, initialWeightG: 1000 };
+
+	it('laisse une bobine archivée inchangée quel que soit le restant', () => {
+		expect(
+			spoolStatusAfterRemainderChange({ status: 'archived', initialWeightG: 1000 }, 400),
+		).toBe('archived');
+		expect(
+			spoolStatusAfterRemainderChange({ status: 'archived', initialWeightG: 1000 }, 0),
+		).toBe('archived');
+	});
+
+	it('passe à vide lorsque le restant est nul ou négatif', () => {
+		expect(spoolStatusAfterRemainderChange(active1000, 0)).toBe('empty');
+		expect(spoolStatusAfterRemainderChange(active1000, -1)).toBe('empty');
+	});
+
+	it('applique stock bas avec les seuils par défaut', () => {
+		expect(spoolStatusAfterRemainderChange(active1000, 80)).toBe('low');
+		// Au-dessus du seuil absolu (100 g) et du seuil relatif (~15 % du stock initial).
+		expect(spoolStatusAfterRemainderChange(active1000, 160)).toBe('active');
+	});
+
+	it('respecte des seuils personnalisés', () => {
+		expect(
+			spoolStatusAfterRemainderChange(active1000, 200, { maxRemainingGrams: 50 }),
+		).toBe('active');
+		expect(
+			spoolStatusAfterRemainderChange(active1000, 200, { maxRemainingGrams: 250 }),
+		).toBe('low');
 	});
 });
