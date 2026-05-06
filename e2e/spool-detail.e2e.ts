@@ -32,9 +32,7 @@ async function createSpool(page: Page, name: string) {
 	await expect(page.getByRole('dialog', { name: 'Ajouter une bobine' })).toBeVisible();
 
 	await page.locator('#dashboard-spool-form-name').fill(name);
-	await page.locator('#dashboard-spool-form-color').fill('Blue');
-	await page.locator('#dashboard-spool-form-hex').fill('#2563eb');
-	await page.locator('#dashboard-spool-form-initial').fill('1000');
+	await page.locator('#dashboard-spool-form-color').selectOption({ label: 'Bleu' });
 	await page.locator('#dashboard-spool-form-price').fill('24.99');
 
 	await page.getByRole('button', { name: 'Enregistrer la bobine' }).click();

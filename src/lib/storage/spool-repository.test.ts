@@ -26,7 +26,7 @@ describe('createSpool', () => {
 			{
 				name: 'Nouvelle bobine',
 				material: { kind: 'catalog', code: 'PLA' },
-				colorName: 'Yellow',
+				colorName: 'Jaune',
 				initialWeightG: 750,
 				purchasePrice: { minorUnits: 1899, currency: 'EUR' },
 			},
@@ -47,7 +47,7 @@ describe('createSpool', () => {
 				{
 					name: '',
 					material: { kind: 'catalog', code: 'PLA' },
-					colorName: 'Grey',
+					colorName: 'Gris',
 					initialWeightG: 1000,
 					purchasePrice: { minorUnits: 100, currency: 'EUR' },
 				},
