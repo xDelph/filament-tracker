@@ -10,6 +10,8 @@ The proposed MVP implementation split is documented in [docs/mvp-issue-breakdown
 
 Technical notes on importing print history from PrusaLink / Prusa Connect (APIs, limits, mapping to domain types) live in [docs/prusa-history-import.md](docs/prusa-history-import.md).
 
+To capture **live API responses** into a JSON file (LAN + Connect), use the Bun tool in [tools/prusa-api-snapshot/README.md](tools/prusa-api-snapshot/README.md).
+
 ## Web app (SvelteKit)
 
 The MVP UI is a [SvelteKit](https://kit.svelte.dev/) application: TypeScript, Vite, Tailwind CSS, Vitest, and Playwright. Use [Bun](https://bun.sh/) as the package manager.
