@@ -2,6 +2,7 @@ import { type Spool, materialCostForGramsAtSpoolRate } from '$lib/domain';
 import { fixtureSpoolFlex, fixtureSpoolPlaGrey } from '$lib/fixtures/domain-fixtures';
 
 import { db, type FilamentTrackerDatabase } from './db';
+import { persistIndexedDbToLocalJson } from './local-json-sync';
 
 export async function seedFixtureSpools(database: FilamentTrackerDatabase = db): Promise<void> {
 	const count = await database.spools.count();
@@ -11,6 +12,7 @@ export async function seedFixtureSpools(database: FilamentTrackerDatabase = db):
 	}
 
 	await database.spools.bulkPut([fixtureSpoolPlaGrey, fixtureSpoolFlex]);
+	await persistIndexedDbToLocalJson(database);
 }
 
 export async function listSpools(database: FilamentTrackerDatabase = db): Promise<Spool[]> {

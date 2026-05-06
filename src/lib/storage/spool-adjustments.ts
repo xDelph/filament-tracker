@@ -9,6 +9,7 @@ import {
 } from '$lib/domain';
 
 import { db, type FilamentTrackerDatabase } from './db';
+import { persistIndexedDbToLocalJson } from './local-json-sync';
 
 export class SpoolAdjustmentPersistenceError extends Error {
 	constructor(message: string) {
@@ -23,7 +24,7 @@ export async function createSpoolAdjustment(
 ): Promise<{ adjustment: SpoolAdjustment; spool: Spool }> {
 	const parsed = SpoolAdjustmentCreateInputSchema.parse(input);
 
-	return database.transaction('rw', database.spools, database.spoolAdjustments, async () => {
+	const result = await database.transaction('rw', database.spools, database.spoolAdjustments, async () => {
 		const spool = await database.spools.get(parsed.spoolId);
 		if (!spool) {
 			throw new SpoolAdjustmentPersistenceError('Bobine introuvable.');
@@ -63,6 +64,9 @@ export async function createSpoolAdjustment(
 
 		return { adjustment, spool: updatedSpool };
 	});
+
+	await persistIndexedDbToLocalJson(database);
+	return result;
 }
 
 export async function listAdjustmentsForSpool(

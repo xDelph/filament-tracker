@@ -5,6 +5,7 @@ import { DEFAULT_SPOOL_INITIAL_WEIGHT_G } from '../src/lib/domain/index';
 test.describe('dashboard spools', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto('/dashboard');
+		await page.evaluate(() => fetch('/api/local-db', { method: 'DELETE' }));
 		await page.evaluate(() => indexedDB.deleteDatabase('filament-tracker'));
 		await page.reload();
 		await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
@@ -25,6 +26,20 @@ test.describe('dashboard spools', () => {
 		await expect(
 			page.getByText(`${DEFAULT_SPOOL_INITIAL_WEIGHT_G} g`).first(),
 		).toBeVisible();
+	});
+
+	test('restores inventory from the local JSON database in a fresh browser profile', async ({
+		browser,
+		page,
+	}) => {
+		await createSpool(page, 'JSON Source Spool');
+		await expect(page.getByRole('heading', { name: 'JSON Source Spool' })).toBeVisible();
+
+		const freshPage = await browser.newPage();
+		await freshPage.goto('/dashboard');
+
+		await expect(freshPage.getByRole('heading', { name: 'JSON Source Spool' })).toBeVisible();
+		await freshPage.close();
 	});
 
 	test('archiving removes the card after confirmation', async ({ page }) => {
