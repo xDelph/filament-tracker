@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { liveQuery } from 'dexie';
-	import { Download, Plus, Upload } from 'lucide-svelte';
+	import { Plus } from 'lucide-svelte';
 
 	import { resolve } from '$app/paths';
 	import {
@@ -22,15 +22,10 @@
 	} from '$lib/domain';
 	import {
 		archiveSpool,
-		backupFileName,
-		exportDatabaseBackup,
-		importDatabaseBackup,
 		listActiveInventorySpools,
 		listPrintUsages,
 		listPrints,
 		markSpoolEmpty,
-		parseDatabaseBackupJson,
-		serializeDatabaseBackup,
 	} from '$lib/storage';
 
 	let spools = $state<Spool[]>([]);
@@ -142,22 +137,12 @@
 	let printModalOpen = $state(false);
 	let printModalInitialSpoolId = $state('');
 	let successMessage = $state('');
-	let errorMessage = $state('');
-	let backupImportInput = $state<HTMLInputElement | null>(null);
 
 	$effect(() => {
 		if (!successMessage) return;
 		const timer = setTimeout(() => {
 			successMessage = '';
 		}, 4500);
-		return () => clearTimeout(timer);
-	});
-
-	$effect(() => {
-		if (!errorMessage) return;
-		const timer = setTimeout(() => {
-			errorMessage = '';
-		}, 6500);
 		return () => clearTimeout(timer);
 	});
 
@@ -233,55 +218,6 @@
 		printModalOpen = false;
 	}
 
-	async function downloadJsonBackup(): Promise<void> {
-		errorMessage = '';
-		try {
-			const backup = await exportDatabaseBackup();
-			const blob = new Blob([serializeDatabaseBackup(backup)], {
-				type: 'application/json;charset=utf-8',
-			});
-			const url = URL.createObjectURL(blob);
-			const anchor = document.createElement('a');
-			anchor.href = url;
-			anchor.download = backupFileName();
-			anchor.click();
-			URL.revokeObjectURL(url);
-			successMessage = 'Sauvegarde JSON téléchargée.';
-		} catch (error) {
-			errorMessage =
-				error instanceof Error ? error.message : 'Impossible de créer la sauvegarde JSON.';
-		}
-	}
-
-	function openBackupImport(): void {
-		errorMessage = '';
-		backupImportInput?.click();
-	}
-
-	async function importBackupFromFile(event: Event): Promise<void> {
-		const input = event.currentTarget as HTMLInputElement;
-		const file = input.files?.[0];
-		input.value = '';
-		if (!file) return;
-		if (
-			!confirm(
-				`Restaurer « ${file.name} » ? Les données locales actuelles seront remplacées par cette sauvegarde.`,
-			)
-		) {
-			return;
-		}
-
-		try {
-			const result = await importDatabaseBackup(parseDatabaseBackupJson(await file.text()));
-			errorMessage = '';
-			successMessage = `Sauvegarde restaurée : ${result.spools} bobine${result.spools === 1 ? '' : 's'}, ${result.prints} impression${result.prints === 1 ? '' : 's'}.`;
-		} catch (error) {
-			successMessage = '';
-			errorMessage =
-				error instanceof Error ? error.message : 'Impossible de restaurer cette sauvegarde.';
-		}
-	}
-
 	function materialLabel(s: Spool): string {
 		return s.material.kind === 'catalog' ? s.material.code : s.material.label;
 	}
@@ -343,21 +279,6 @@
 			</p>
 		</div>
 		<div class="flex flex-wrap gap-2">
-			<Button variant="secondary" onclick={downloadJsonBackup}>
-				<Download size={16} />
-				Exporter JSON
-			</Button>
-			<Button variant="secondary" onclick={openBackupImport}>
-				<Upload size={16} />
-				Importer JSON
-			</Button>
-			<input
-				bind:this={backupImportInput}
-				type="file"
-				accept="application/json,.json"
-				class="hidden"
-				onchange={importBackupFromFile}
-			/>
 			<Button variant="secondary" onclick={() => openPrintModal()} disabled={spools.length === 0}>
 				<Plus size={16} />
 				Ajouter une impression
@@ -371,14 +292,6 @@
 			class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-success"
 		>
 			{successMessage}
-		</p>
-	{/if}
-
-	{#if errorMessage}
-		<p
-			class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-danger"
-		>
-			{errorMessage}
 		</p>
 	{/if}
 
