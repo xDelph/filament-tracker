@@ -36,6 +36,12 @@ export function filamentHexForPaletteColor(name: FilamentPaletteColorName): stri
 }
 
 /**
+ * Default full-spool weight (g) for new-inventory UX (`SpoolForm` create mode).
+ * `SpoolCreateInputSchema` still requires an explicit `initialWeightG` on parse — typically this value.
+ */
+export const DEFAULT_SPOOL_INITIAL_WEIGHT_G = 1000;
+
+/**
  * Describes how `material` is interpreted (catalog vs free-text custom label).
  */
 export const SpoolMaterialSchema = z.discriminatedUnion('kind', [

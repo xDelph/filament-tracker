@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	DEFAULT_SPOOL_INITIAL_WEIGHT_G,
 	PrintCreateInputSchema,
 	PrintFilamentUsageCreateInputSchema,
 	SpoolAdjustmentCreateInputSchema,
@@ -40,10 +41,21 @@ describe('create/edit schemas', () => {
 				name: 'Test spool',
 				material: { kind: 'catalog', code: 'PLA' },
 				colorName: 'Bleu',
-				initialWeightG: 1000,
+				initialWeightG: DEFAULT_SPOOL_INITIAL_WEIGHT_G,
 				purchasePrice: { minorUnits: 2599, currency: 'EUR' },
 			}).success,
 		).toBe(true);
+	});
+
+	it('exige initialWeightG à la création (pas de défaut implicite côté schéma)', () => {
+		expect(
+			SpoolCreateInputSchema.safeParse({
+				name: 'Sans poids',
+				material: { kind: 'catalog', code: 'PLA' },
+				colorName: 'Bleu',
+				purchasePrice: { minorUnits: 2599, currency: 'EUR' },
+			}).success,
+		).toBe(false);
 	});
 
 	it('rejette un prix en float', () => {
@@ -62,7 +74,7 @@ describe('create/edit schemas', () => {
 				name: 'Test',
 				material: { kind: 'catalog', code: 'PLA' },
 				colorName: 'Magenta custom',
-				initialWeightG: 1000,
+				initialWeightG: DEFAULT_SPOOL_INITIAL_WEIGHT_G,
 				purchasePrice: { minorUnits: 100, currency: 'EUR' },
 			}).success,
 		).toBe(false);
@@ -74,7 +86,7 @@ describe('create/edit schemas', () => {
 				name: 'Gratuite',
 				material: { kind: 'catalog', code: 'PLA' },
 				colorName: 'Bleu',
-				initialWeightG: 1000,
+				initialWeightG: DEFAULT_SPOOL_INITIAL_WEIGHT_G,
 				purchasePrice: { minorUnits: 0, currency: 'EUR' },
 			}).success,
 		).toBe(false);
@@ -84,7 +96,7 @@ describe('create/edit schemas', () => {
 				name: 'Paid',
 				material: { kind: 'catalog', code: 'PLA' },
 				colorName: 'Bleu',
-				initialWeightG: 1000,
+				initialWeightG: DEFAULT_SPOOL_INITIAL_WEIGHT_G,
 				purchasePrice: { minorUnits: 1, currency: 'EUR' },
 			}).success,
 		).toBe(true);
@@ -95,7 +107,7 @@ describe('create/edit schemas', () => {
 			name: 'Date test',
 			material: { kind: 'catalog', code: 'PLA' },
 			colorName: 'Bleu',
-			initialWeightG: 1000,
+			initialWeightG: DEFAULT_SPOOL_INITIAL_WEIGHT_G,
 			purchasePrice: { minorUnits: 2599, currency: 'EUR' },
 			purchaseDate: '2026-03-01',
 		});
