@@ -57,7 +57,10 @@ export function mergeSpoolUpdate(
 	return SpoolSchema.parse(next);
 }
 
-export async function createSpool(input: unknown): Promise<Spool> {
+export async function createSpool(
+	input: unknown,
+	database: FilamentTrackerDatabase = db,
+): Promise<Spool> {
 	const parsed = SpoolCreateInputSchema.parse(input);
 	const now = new Date().toISOString();
 	const id = crypto.randomUUID();
@@ -80,8 +83,8 @@ export async function createSpool(input: unknown): Promise<Spool> {
 		createdAt: now,
 		updatedAt: now,
 	});
-	await db.spools.add(spool);
-	await persistIndexedDbToLocalJson();
+	await database.spools.add(spool);
+	await persistIndexedDbToLocalJson(database);
 	return spool;
 }
 
