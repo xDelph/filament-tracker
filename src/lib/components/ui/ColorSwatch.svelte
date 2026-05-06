@@ -17,12 +17,12 @@
     lg: 'size-7'
   };
 
+  /** Même teinte que l’ancien défaut : pas d’hex stocké (ex. transparent / anciennes bobines). */
+  const neutralFill = '#d7dde5';
+
   const swatchStyle = $derived.by(() => {
     const solid = color?.trim();
-    if (solid) {
-      return `background-color: ${solid};`;
-    }
-    return `background: repeating-conic-gradient(#e2e8f0 0% 25%, #f8fafc 0% 50%) 50% / 8px 8px;`;
+    return `background-color: ${solid || neutralFill};`;
   });
 </script>
 
