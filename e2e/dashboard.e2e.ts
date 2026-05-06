@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { DEFAULT_SPOOL_INITIAL_WEIGHT_G } from '../src/lib/domain/index';
+
 test.describe('dashboard spools', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto('/dashboard');
@@ -8,11 +10,21 @@ test.describe('dashboard spools', () => {
 		await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
 	});
 
+	test('add spool modal prefills initial weight from product default', async ({ page }) => {
+		await page.getByRole('button', { name: 'Ajouter une bobine' }).click();
+		await expect(page.getByRole('dialog', { name: 'Ajouter une bobine' })).toBeVisible();
+		await expect(page.locator('#dashboard-spool-form-initial')).toHaveValue(
+			String(DEFAULT_SPOOL_INITIAL_WEIGHT_G),
+		);
+	});
+
 	test('creates a spool and shows it in the inventory grid', async ({ page }) => {
 		await createSpool(page, 'E2E Spool');
 
 		await expect(page.getByRole('heading', { name: 'E2E Spool' })).toBeVisible();
-		await expect(page.getByText('1000 g').first()).toBeVisible();
+		await expect(
+			page.getByText(`${DEFAULT_SPOOL_INITIAL_WEIGHT_G} g`).first(),
+		).toBeVisible();
 	});
 
 	test('archiving removes the card after confirmation', async ({ page }) => {
@@ -62,7 +74,9 @@ test.describe('dashboard spools', () => {
 		await page.getByRole('button', { name: 'Ajouter une impression' }).click();
 		const printDialog = page.getByRole('dialog', { name: 'Ajouter une impression' });
 		await printDialog.getByLabel("Nom de l'impression").fill('Fast calibration cube');
-		await printDialog.getByLabel('Bobine').selectOption({ label: 'Print Source (1000 g)' });
+		await printDialog.getByLabel('Bobine').selectOption({
+			label: `Print Source (${DEFAULT_SPOOL_INITIAL_WEIGHT_G} g)`,
+		});
 		await printDialog.getByLabel('Utilisé').fill('10');
 		await printDialog.getByLabel('Rebut').fill('2');
 		await printDialog.getByRole('button', { name: /Enregistrer l[\u2019']impression/ }).click();
@@ -80,7 +94,9 @@ test.describe('dashboard spools', () => {
 		const printDialog = page.getByRole('dialog', { name: 'Ajouter une impression' });
 		await printDialog.getByLabel("Nom de l'impression").fill('History calibration cube');
 		await printDialog.getByLabel("Date d'impression").fill('2026-05-04T00:30');
-		await printDialog.getByLabel('Bobine').selectOption({ label: 'History Source (1000 g)' });
+		await printDialog.getByLabel('Bobine').selectOption({
+			label: `History Source (${DEFAULT_SPOOL_INITIAL_WEIGHT_G} g)`,
+		});
 		await printDialog.getByLabel('Utilisé').fill('10');
 		await printDialog.getByLabel('Rebut').fill('2');
 		await printDialog.getByRole('button', { name: /Enregistrer l[\u2019']impression/ }).click();
@@ -115,7 +131,9 @@ async function createSpool(
 		await page.locator('#dashboard-spool-form-mat-code').selectOption(options.catalogMaterial);
 	}
 	await page.locator('#dashboard-spool-form-color').selectOption({ label: 'Bleu' });
-	await page.locator('#dashboard-spool-form-initial').fill(options.initialWeightG ?? '1000');
+	if (options.initialWeightG !== undefined) {
+		await page.locator('#dashboard-spool-form-initial').fill(options.initialWeightG);
+	}
 	await page.locator('#dashboard-spool-form-price').fill(options.price ?? '24.99');
 
 	await page.getByRole('button', { name: 'Enregistrer la bobine' }).click();
