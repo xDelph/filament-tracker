@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { z } from 'zod';
 	import {
+		FILAMENT_PALETTE,
+		FilamentPaletteColorNameSchema,
 		FilamentStandardMaterialSchema,
+		filamentHexForPaletteColor,
+		type FilamentPaletteColorName,
 		type Spool,
 		type SpoolMaterial,
 		type SpoolStatus,
@@ -35,6 +39,12 @@
 		{ label: 'Catalog', value: 'catalog' },
 		{ label: 'Custom label', value: 'custom' },
 	];
+
+	const filamentColorOptions = FILAMENT_PALETTE.map((e) => ({ label: e.name, value: e.name }));
+
+	function isPaletteColorName(s: string): s is FilamentPaletteColorName {
+		return FilamentPaletteColorNameSchema.safeParse(s).success;
+	}
 
 	function catalogMaterialOptions() {
 		return MATERIAL_CODES.map((code) => ({ label: code, value: code }));
@@ -76,8 +86,7 @@
 	let catalogCode = $state<(typeof MATERIAL_CODES)[number]>('PLA');
 	let customMaterialLabel = $state('');
 	let brand = $state('');
-	let colorName = $state('');
-	let colorHex = $state('');
+	let filamentColor = $state<'' | FilamentPaletteColorName>('');
 	let initialWeightG = $state<number | undefined>(undefined);
 	let priceMajor = $state<number | undefined>(undefined);
 	let currency = $state('EUR');
@@ -103,8 +112,7 @@
 			catalogCode = 'PLA';
 		}
 		brand = s.brand ?? '';
-		colorName = s.colorName;
-		colorHex = s.colorHex ?? '';
+		filamentColor = isPaletteColorName(s.colorName) ? s.colorName : '';
 		initialWeightG = s.initialWeightG;
 		priceMajor = s.purchasePrice.minorUnits / 100;
 		currency = s.purchasePrice.currency;
@@ -144,12 +152,15 @@
 				: undefined;
 
 		if (mode === 'create') {
+			const paletteHex = filamentColor
+				? filamentHexForPaletteColor(filamentColor)
+				: undefined;
 			const payload = {
 				name: name.trim(),
 				material: materialPayload(),
 				brand: brand.trim() || undefined,
-				colorName: colorName.trim(),
-				colorHex: colorHex.trim() || undefined,
+				colorName: filamentColor,
+				colorHex: paletteHex,
 				initialWeightG,
 				purchasePrice,
 				purchaseDate: purchaseDate.trim() || undefined,
@@ -179,12 +190,10 @@
 			return;
 		}
 
-		const patchRaw = {
+		const patchRaw: Record<string, unknown> = {
 			name: name.trim(),
 			material: materialPayload(),
 			brand: brand.trim() ? brand.trim() : ('' as const),
-			colorName: colorName.trim(),
-			colorHex: colorHex.trim() ? colorHex.trim() : ('' as const),
 			initialWeightG,
 			purchasePrice,
 			purchaseDate: purchaseDate.trim(),
@@ -194,6 +203,10 @@
 			status,
 			notes: notes.trim() ? notes.trim() : ('' as const),
 		};
+		if (filamentColor) {
+			patchRaw.colorName = filamentColor;
+			patchRaw.colorHex = filamentHexForPaletteColor(filamentColor) ?? '';
+		}
 		const parsed = SpoolUpdateInputSchema.safeParse(patchRaw);
 		if (!parsed.success) {
 			fieldErrors = zodFieldMap(parsed.error);
@@ -287,34 +300,37 @@
 			error={err('brand')}
 			hint="Optional"
 		/>
-		<TextInput
+		<Select
 			id={`${formId}-color`}
-			label="Color name"
-			bind:value={colorName}
-			required
+			label="Couleur"
+			bind:value={filamentColor}
+			options={filamentColorOptions}
+			placeholder="Choisir une couleur"
+			required={mode === 'create'}
 			error={err('colorName')}
 		/>
 	</div>
 
+	{#if mode === 'edit' && spool && !isPaletteColorName(spool.colorName)}
+		<p class="text-xs text-ink-muted">
+			Couleur enregistrée (libre) : {spool.colorName}. Sélectionnez une couleur dans la liste pour l’aligner
+			sur le catalogue.
+		</p>
+	{/if}
+
 	<div class="grid gap-3 sm:grid-cols-2">
-		<TextInput
-			id={`${formId}-hex`}
-			label="Color hex"
-			bind:value={colorHex}
-			placeholder="#AABBCC"
-			error={err('colorHex')}
-			hint="Optional swatch"
-		/>
-		<NumberInput
-			id={`${formId}-initial`}
-			label="Initial weight"
-			bind:value={initialWeightG}
-			unit="g"
-			min={0}
-			step={0.01}
-			required
-			error={err('initialWeightG')}
-		/>
+		<div class="sm:col-span-2 max-w-md">
+			<NumberInput
+				id={`${formId}-initial`}
+				label="Initial weight"
+				bind:value={initialWeightG}
+				unit="g"
+				min={0}
+				step={0.01}
+				required
+				error={err('initialWeightG')}
+			/>
+		</div>
 	</div>
 
 	<div class="grid gap-3 sm:grid-cols-2">

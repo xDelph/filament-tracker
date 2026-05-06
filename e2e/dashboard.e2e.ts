@@ -114,8 +114,7 @@ async function createSpool(
 	if (options.catalogMaterial) {
 		await page.locator('#dashboard-spool-form-mat-code').selectOption(options.catalogMaterial);
 	}
-	await page.locator('#dashboard-spool-form-color').fill('Blue');
-	await page.locator('#dashboard-spool-form-hex').fill('#2563eb');
+	await page.locator('#dashboard-spool-form-color').selectOption({ label: 'Bleu' });
 	await page.locator('#dashboard-spool-form-initial').fill(options.initialWeightG ?? '1000');
 	await page.locator('#dashboard-spool-form-price').fill(options.price ?? '24.99');
 
