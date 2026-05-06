@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { z } from 'zod';
 	import {
+		DEFAULT_SPOOL_INITIAL_WEIGHT_G,
 		FILAMENT_PALETTE,
 		FilamentPaletteColorNameSchema,
 		FilamentStandardMaterialSchema,
@@ -87,7 +88,7 @@
 	let customMaterialLabel = $state('');
 	let brand = $state('');
 	let filamentColor = $state<'' | FilamentPaletteColorName>('');
-	let initialWeightG = $state<number | undefined>(undefined);
+	let initialWeightG = $state<number | undefined>(DEFAULT_SPOOL_INITIAL_WEIGHT_G);
 	let priceMajor = $state<number | undefined>(undefined);
 	let currency = $state('EUR');
 	let purchaseDate = $state('');

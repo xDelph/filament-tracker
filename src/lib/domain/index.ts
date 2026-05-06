@@ -64,6 +64,7 @@ export type {
 } from './spool';
 
 export {
+	DEFAULT_SPOOL_INITIAL_WEIGHT_G,
 	FILAMENT_DIAMETERS_MM,
 	FILAMENT_PALETTE,
 	FilamentDiameterSchema,

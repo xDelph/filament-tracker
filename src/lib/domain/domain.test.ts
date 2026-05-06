@@ -46,6 +46,17 @@ describe('create/edit schemas', () => {
 		).toBe(true);
 	});
 
+	it('applique 1000 g par défaut pour initialWeightG quand le champ est absent', () => {
+		const parsed = SpoolCreateInputSchema.parse({
+			name: 'Default weight spool',
+			material: { kind: 'catalog', code: 'PLA' },
+			colorName: 'Blue',
+			purchasePrice: { minorUnits: 2599, currency: 'EUR' },
+		});
+
+		expect(parsed.initialWeightG).toBe(1000);
+	});
+
 	it('rejette un prix en float', () => {
 		const result = PrintFilamentUsageCreateInputSchema.safeParse({
 			spoolId: fixtureSpoolPlaGrey.id,
