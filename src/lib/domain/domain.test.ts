@@ -39,7 +39,7 @@ describe('create/edit schemas', () => {
 			SpoolCreateInputSchema.safeParse({
 				name: 'Test spool',
 				material: { kind: 'catalog', code: 'PLA' },
-				colorName: 'Blue',
+				colorName: 'Bleu',
 				initialWeightG: 1000,
 				purchasePrice: { minorUnits: 2599, currency: 'EUR' },
 			}).success,
@@ -56,12 +56,24 @@ describe('create/edit schemas', () => {
 		expect(result.success).toBe(false);
 	});
 
+	it('rejette une couleur hors liste à la création de bobine', () => {
+		expect(
+			SpoolCreateInputSchema.safeParse({
+				name: 'Test',
+				material: { kind: 'catalog', code: 'PLA' },
+				colorName: 'Magenta custom',
+				initialWeightG: 1000,
+				purchasePrice: { minorUnits: 100, currency: 'EUR' },
+			}).success,
+		).toBe(false);
+	});
+
 	it('exige un prix strictement positif à la création de bobine', () => {
 		expect(
 			SpoolCreateInputSchema.safeParse({
 				name: 'Gratuite',
 				material: { kind: 'catalog', code: 'PLA' },
-				colorName: 'Blue',
+				colorName: 'Bleu',
 				initialWeightG: 1000,
 				purchasePrice: { minorUnits: 0, currency: 'EUR' },
 			}).success,
@@ -71,7 +83,7 @@ describe('create/edit schemas', () => {
 			SpoolCreateInputSchema.safeParse({
 				name: 'Paid',
 				material: { kind: 'catalog', code: 'PLA' },
-				colorName: 'Blue',
+				colorName: 'Bleu',
 				initialWeightG: 1000,
 				purchasePrice: { minorUnits: 1, currency: 'EUR' },
 			}).success,
@@ -82,7 +94,7 @@ describe('create/edit schemas', () => {
 		const parsed = SpoolCreateInputSchema.parse({
 			name: 'Date test',
 			material: { kind: 'catalog', code: 'PLA' },
-			colorName: 'Blue',
+			colorName: 'Bleu',
 			initialWeightG: 1000,
 			purchasePrice: { minorUnits: 2599, currency: 'EUR' },
 			purchaseDate: '2026-03-01',

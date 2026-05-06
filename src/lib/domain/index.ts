@@ -55,15 +55,24 @@ export {
 	PrintFilamentUsageUpdateInputSchema,
 } from './print-filament-usage';
 
-export type { Spool, SpoolCreateInput, SpoolMaterial, SpoolUpdateInput } from './spool';
+export type {
+	FilamentPaletteColorName,
+	Spool,
+	SpoolCreateInput,
+	SpoolMaterial,
+	SpoolUpdateInput,
+} from './spool';
 
 export {
 	FILAMENT_DIAMETERS_MM,
+	FILAMENT_PALETTE,
 	FilamentDiameterSchema,
+	FilamentPaletteColorNameSchema,
 	SpoolCreateInputSchema,
 	SpoolMaterialSchema,
 	SpoolSchema,
 	SpoolUpdateInputSchema,
+	filamentHexForPaletteColor,
 } from './spool';
 
 export type { SpoolAdjustment, SpoolAdjustmentCreateInput } from './spool-adjustment';

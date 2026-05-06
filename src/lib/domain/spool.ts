@@ -9,6 +9,32 @@ import { optionalClearablePurchaseDate, PurchaseDateInputSchema } from './dates'
 import { MoneyMinorPurchaseSchema } from './money';
 import { finiteNonNegativeGrams, finitePositiveGrams } from './weights';
 
+/** Couleurs filament courantes (libellés et teintes suggestion pour l'aperçu). */
+export const FILAMENT_PALETTE = [
+	{ name: 'Blanc', hex: '#f8fafc' as const },
+	{ name: 'Noir', hex: '#111827' as const },
+	{ name: 'Gris', hex: '#6b7280' as const },
+	{ name: 'Rouge', hex: '#dc2626' as const },
+	{ name: 'Bleu', hex: '#2563eb' as const },
+	{ name: 'Vert', hex: '#16a34a' as const },
+	{ name: 'Jaune', hex: '#ca8a04' as const },
+	{ name: 'Orange', hex: '#ea580c' as const },
+	{ name: 'Violet', hex: '#9333ea' as const },
+	{ name: 'Rose', hex: '#ec4899' as const },
+	{ name: 'Transparent', hex: undefined },
+] as const;
+
+export type FilamentPaletteColorName = (typeof FILAMENT_PALETTE)[number]['name'];
+
+export const FilamentPaletteColorNameSchema = z.enum(
+	FILAMENT_PALETTE.map((e) => e.name) as [FilamentPaletteColorName, ...FilamentPaletteColorName[]],
+);
+
+export function filamentHexForPaletteColor(name: FilamentPaletteColorName): string | undefined {
+	const entry = FILAMENT_PALETTE.find((e) => e.name === name);
+	return entry?.hex;
+}
+
 /**
  * Describes how `material` is interpreted (catalog vs free-text custom label).
  */
@@ -44,10 +70,11 @@ const BaseSpoolShape = {
 		.max(200),
 	material: SpoolMaterialSchema,
 	brand: z.string().min(1).max(128).optional(),
-	colorName: z
-		.string({ required_error: 'Couleur (libellé) obligatoire.' })
-		.min(1)
-		.max(128),
+	/** Valeurs catalogue ; les enregistrements plus anciens peuvent encore avoir un libellé libre. */
+	colorName: z.union([
+		FilamentPaletteColorNameSchema,
+		z.string().min(1).max(128),
+	]),
 	colorHex: z
 		.string()
 		.regex(/^#[0-9A-Fa-f]{6}$/, 'Couleur hex attendue (#RRVVBB).')
@@ -85,7 +112,7 @@ export const SpoolCreateInputSchema = z.object({
 	name: BaseSpoolShape.name,
 	material: BaseSpoolShape.material,
 	brand: BaseSpoolShape.brand,
-	colorName: BaseSpoolShape.colorName,
+	colorName: FilamentPaletteColorNameSchema,
 	colorHex: BaseSpoolShape.colorHex,
 	initialWeightG: BaseSpoolShape.initialWeightG,
 	purchasePrice: MoneyMinorPurchaseSchema,
@@ -104,7 +131,7 @@ export const SpoolUpdateInputSchema = z.object({
 	name: BaseSpoolShape.name.optional(),
 	material: BaseSpoolShape.material.optional(),
 	brand: z.union([z.string().min(1).max(128), z.literal('')]).optional(),
-	colorName: BaseSpoolShape.colorName.optional(),
+	colorName: FilamentPaletteColorNameSchema.optional(),
 	colorHex: z.union([BaseSpoolShape.colorHex, z.literal('')]).optional(),
 	initialWeightG: finitePositiveGrams().optional(),
 	purchasePrice: MoneyMinorPurchaseSchema.optional(),
