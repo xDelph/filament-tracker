@@ -1,5 +1,18 @@
 export { db, FilamentTrackerDb, FilamentTrackerDatabase } from './db';
 export {
+	LOCAL_JSON_DB_SCHEMA_VERSION,
+	LocalJsonDbSnapshotSchema,
+	collectLocalJsonDbSnapshot,
+	emptyLocalJsonDbSnapshot,
+	replaceIndexedDbFromLocalJsonSnapshot,
+	type LocalJsonDbSnapshot,
+} from './local-json-snapshot';
+export {
+	ensureLocalJsonDbHydrated,
+	hydrateIndexedDbFromLocalJson,
+	persistIndexedDbToLocalJson,
+} from './local-json-sync';
+export {
 	archiveSpool,
 	createSpool,
 	getSpool,

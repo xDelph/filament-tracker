@@ -8,6 +8,7 @@ import {
 } from '$lib/domain';
 
 import { db, type FilamentTrackerDatabase } from './db';
+import { persistIndexedDbToLocalJson } from './local-json-sync';
 
 /** Raw patch contained `purchaseDate: ''` before Zod strips it — persist clearing the field. */
 function patchClearsPurchaseDate(patch: unknown): boolean {
@@ -80,6 +81,7 @@ export async function createSpool(input: unknown): Promise<Spool> {
 		updatedAt: now,
 	});
 	await db.spools.add(spool);
+	await persistIndexedDbToLocalJson();
 	return spool;
 }
 
@@ -92,6 +94,7 @@ export async function updateSpool(id: string, patch: unknown): Promise<Spool> {
 	const parsed = SpoolUpdateInputSchema.parse(patch);
 	const updated = mergeSpoolUpdate(existing, parsed, { clearPurchaseDate });
 	await db.spools.put(updated);
+	await persistIndexedDbToLocalJson();
 	return updated;
 }
 
@@ -118,6 +121,7 @@ export async function archiveSpool(id: string): Promise<Spool> {
 		updatedAt: new Date().toISOString(),
 	});
 	await db.spools.put(next);
+	await persistIndexedDbToLocalJson();
 	return next;
 }
 
@@ -133,6 +137,7 @@ export async function markSpoolEmpty(id: string): Promise<Spool> {
 		updatedAt: new Date().toISOString(),
 	});
 	await db.spools.put(next);
+	await persistIndexedDbToLocalJson();
 	return next;
 }
 

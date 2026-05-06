@@ -14,6 +14,7 @@ import {
 } from '$lib/domain';
 
 import { db, type FilamentTrackerDatabase } from './db';
+import { persistIndexedDbToLocalJson } from './local-json-sync';
 
 /** Aligné avec la détection « stock bas » côté impressions et filtres tableau de bord. */
 export const LOW_STOCK_THRESHOLDS = {
@@ -61,7 +62,7 @@ export async function createPrintWithUsages(
 		throw new PrintPersistenceError('Chaque bobine ne peut apparaître qu’une seule fois.');
 	}
 
-	return database.transaction('rw', database.spools, database.prints, database.printFilamentUsages, async () => {
+	const result = await database.transaction('rw', database.spools, database.prints, database.printFilamentUsages, async () => {
 		const now = new Date().toISOString();
 		const spools = await database.spools.bulkGet([...uniqueSpoolIds]);
 		const spoolById = new Map<string, Spool>();
@@ -140,6 +141,9 @@ export async function createPrintWithUsages(
 			spools: [...updates.values()],
 		};
 	});
+
+	await persistIndexedDbToLocalJson(database);
+	return result;
 }
 
 export async function listPrints(database: FilamentTrackerDatabase = db): Promise<Print[]> {

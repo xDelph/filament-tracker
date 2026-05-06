@@ -2,8 +2,15 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { resolve } from '$app/paths';
+	import { ensureLocalJsonDbHydrated } from '$lib/storage';
 
 	let { children } = $props();
+
+	$effect(() => {
+		ensureLocalJsonDbHydrated().catch((error) => {
+			console.warn('Local JSON database hydration failed.', error);
+		});
+	});
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
