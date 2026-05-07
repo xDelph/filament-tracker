@@ -1,6 +1,6 @@
 # Prusa API snapshot (local)
 
-Petit utilitaire **Bun** à côté de l’app SvelteKit : une fois le fichier `.env` rempli, il appelle les endpoints PrusaLink (digest) et Prusa Connect (Bearer JWT) documentés pour l’étude d’import, puis écrit **un JSON unique** que tu peux partager (sans secrets : mots de passe et jetons ne sont jamais écrits dans le fichier de sortie).
+Petit utilitaire **Bun** à côté de l’app SvelteKit : une fois le fichier `.env` rempli, il appelle les endpoints PrusaLink (digest) et Prusa Connect (`Authorization: Bearer …`) documentés pour l’étude d’import, puis écrit **un JSON unique** que tu peux partager (sans secrets : clés API et jetons ne sont jamais écrits dans le fichier de sortie).
 
 ## Installation
 
@@ -23,11 +23,13 @@ Voir `.env.example`. Résumé :
 | `PRUSALINK_ENABLED` | `true` pour interroger l’imprimante en LAN |
 | `PRUSALINK_BASE_URL` | Ex. `http://192.168.1.42` (sans slash final) |
 | `PRUSALINK_USER` | Souvent `maker` |
-| `PRUSALINK_PASSWORD` | Mot de passe API PrusaLink |
+| `PRUSALINK_API_KEY` | Clé API PrusaLink (mot de passe digest ; celui configuré sur l’imprimante / dans PrusaLink) |
+| `PRUSALINK_PASSWORD` | **Obsolète** : encore lu si `PRUSALINK_API_KEY` est vide |
 | `PRUSALINK_BASIC_AUTH` | `true` uniquement si ton instance utilise Basic au lieu de Digest |
 | `PRUSALINK_MAX_PRINT_FILE_SAMPLES` | Limite d’exemples fichiers avec méta complète (défaut 80) |
 | `PRUSA_CONNECT_ENABLED` | `true` pour l’API mobile `connect-mobile-api.prusa3d.com` |
-| `PRUSA_CONNECT_BEARER_TOKEN` | JWT (session navigateur ; ne pas commiter) |
+| `PRUSA_CONNECT_API_KEY` | Clé API Connect ou JWT de session — valeur envoyée dans `Authorization: Bearer …` (spec OpenAPI) |
+| `PRUSA_CONNECT_BEARER_TOKEN` | **Obsolète** : encore lu si `PRUSA_CONNECT_API_KEY` est vide |
 | `PRUSA_CONNECT_BASE_URL` | Défaut production officielle |
 | `PRUSA_CONNECT_ITEMS_PER_PAGE` | Pagination |
 | `PRUSA_CONNECT_MAX_PAGES` | Garde-fou par collection |

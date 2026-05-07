@@ -1,5 +1,5 @@
 /**
- * Prusa Connect mobile API (Bearer JWT).
+ * Prusa Connect mobile API (Bearer : clé API ou JWT dans Authorization).
  */
 
 export type ApiResult<T> =
@@ -16,7 +16,7 @@ function safeJsonParse(text: string): unknown {
 
 export async function connectFetchJson(
 	baseUrl: string,
-	token: string,
+	bearerSecret: string,
 	pathAndQuery: string,
 ): Promise<ApiResult<unknown>> {
 	const root = baseUrl.replace(/\/$/, '');
@@ -27,7 +27,7 @@ export async function connectFetchJson(
 		const res = await fetch(url, {
 			headers: {
 				Accept: 'application/json',
-				Authorization: `Bearer ${token}`,
+				Authorization: `Bearer ${bearerSecret}`,
 			},
 		});
 		const text = await res.text();
@@ -56,7 +56,7 @@ function hydraMember(data: unknown): unknown[] | null {
 /** Fetches JSON array pages (plain or Hydra) until a page is empty or shorter than page size. */
 export async function fetchConnectPaged(
 	baseUrl: string,
-	token: string,
+	bearerSecret: string,
 	buildPath: (page: number) => string,
 	itemsPerPage: number,
 	maxPages: number,
@@ -66,7 +66,7 @@ export async function fetchConnectPaged(
 	let truncated = false;
 
 	for (let page = 1; page <= maxPages; page++) {
-		const res = await connectFetchJson(baseUrl, token, buildPath(page));
+		const res = await connectFetchJson(baseUrl, bearerSecret, buildPath(page));
 		if (!res.ok) {
 			errors.push(`page ${page}: ${res.error} (${res.status})`);
 			break;
