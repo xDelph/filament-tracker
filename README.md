@@ -12,7 +12,13 @@ Technical notes on importing print history from PrusaLink / Prusa Connect (APIs,
 
 To capture **live API responses** into a JSON file (LAN + Connect), use the Bun tool in [tools/prusa-api-snapshot/README.md](tools/prusa-api-snapshot/README.md).
 
-## Web app (SvelteKit)
+Si tu récupères plutôt l’export riche **`jobs`** (avec `file.meta` Prusa Connect), tu peux le convertir en **sauvegarde locale importable** (`schemaVersion: 1`, même format que la route `PUT /api/local-db`) avec :
+
+```sh
+bun run import:prusa-jobs -- path/to/prusa_connect_jobs.json path/to/out.snapshot.json
+```
+
+Variable optionnelle : `FILAMENT_IMPORT_CURRENCY` (défaut `EUR`) pour convertir `filament_cost` en `MoneyMinor`.
 
 The MVP UI is a [SvelteKit](https://kit.svelte.dev/) application: TypeScript, Vite, Tailwind CSS, Vitest, and Playwright. Use [Bun](https://bun.sh/) as the package manager.
 
