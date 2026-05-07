@@ -9,8 +9,18 @@ cd tools/prusa-api-snapshot
 bun install
 cp .env.example .env
 # Éditer .env puis :
+
+# Les deux APIs autorisées par les flags ENABLED du .env
 bun run snapshot
+
+# Cloud uniquement : aucune requête LAN vers l’imprimante (utile si elle imprime).
+bun run snapshot:connect
+
+# LAN uniquement : Prusa Link seul, aucun appel à Prusa Connect.
+bun run snapshot:link
 ```
+
+Les alias CLI équivalents : `bun run src/index.ts --prusaconnect-only` / `--prusalink-only` (raccourcis `--connect-only` et `--link-only`).
 
 Le fichier généré par défaut : `out/prusa-snapshot.json` (surchargeable avec `OUTPUT_PATH`).
 

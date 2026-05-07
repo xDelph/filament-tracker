@@ -46,14 +46,40 @@ function envFirst(...keys: string[]): string {
 	return '';
 }
 
+type SnapshotScope = 'both' | 'prusalink-only' | 'prusaconnect-only';
+
+function parseSnapshotScope(argv: string[]): SnapshotScope {
+	const link = argv.includes('--prusalink-only') || argv.includes('--link-only');
+	const connect = argv.includes('--prusaconnect-only') || argv.includes('--connect-only');
+	if (link && connect) {
+		console.error('Utilise soit --prusalink-only soit --prusaconnect-only, pas les deux.');
+		process.exit(1);
+	}
+	if (link) return 'prusalink-only';
+	if (connect) return 'prusaconnect-only';
+	return 'both';
+}
+
 async function main(): Promise<void> {
-	const prusaLinkEnabled = envBool('PRUSALINK_ENABLED', false);
-	const connectEnabled = envBool('PRUSA_CONNECT_ENABLED', false);
+	const scope = parseSnapshotScope(process.argv.slice(2));
+
+	const envLink = envBool('PRUSALINK_ENABLED', false);
+	const envConnect = envBool('PRUSA_CONNECT_ENABLED', false);
+
+	const prusaLinkEnabled = scope === 'prusaconnect-only' ? false : envLink;
+	const connectEnabled = scope === 'prusalink-only' ? false : envConnect;
+
+	if (scope === 'prusaconnect-only') {
+		console.info('Snapshot : mode Prusa Connect uniquement — aucune requête vers l’imprimante locale.');
+	} else if (scope === 'prusalink-only') {
+		console.info('Snapshot : mode PrusaLink uniquement — aucune requête vers Prusa Connect.');
+	}
 
 	const outputPath = resolve(process.env.OUTPUT_PATH ?? join(__dirname, '../out/prusa-snapshot.json'));
 
 	const snapshot: Record<string, unknown> = {
 		generatedAt: new Date().toISOString(),
+		snapshotScope: scope,
 		prusalink: null as unknown,
 		prusaConnect: null as unknown,
 	};
@@ -126,7 +152,14 @@ async function main(): Promise<void> {
 			],
 		};
 	} else {
-		snapshot.prusalink = { enabled: false };
+		snapshot.prusalink =
+			scope === 'prusaconnect-only'
+				? {
+						enabled: false,
+						skippedByScope:
+							'Connect uniquement : aucune requête PrusaLink (imprimante locale non contactée par ce script).',
+					}
+				: { enabled: false };
 	}
 
 	if (connectEnabled) {
@@ -208,7 +241,13 @@ async function main(): Promise<void> {
 			],
 		};
 	} else {
-		snapshot.prusaConnect = { enabled: false };
+		snapshot.prusaConnect =
+			scope === 'prusalink-only'
+				? {
+						enabled: false,
+						skippedByScope: 'PrusaLink uniquement : aucune requête vers Prusa Connect.',
+					}
+				: { enabled: false };
 	}
 
 	mkdirSync(dirname(outputPath), { recursive: true });

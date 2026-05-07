@@ -5,6 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"snapshot": "bun run src/index.ts",
+		"snapshot:link": "bun run src/index.ts --prusalink-only",
+		"snapshot:connect": "bun run src/index.ts --prusaconnect-only",
 		"check": "tsc --noEmit"
 	},
 	"dependencies": {
