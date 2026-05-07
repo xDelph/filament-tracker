@@ -33,7 +33,7 @@ Document de recherche technique pour nourrir Filament Tracker à partir des donn
 - **`m_timestamp`** sur un fichier reflète la **dernière modification / présence** du fichier, **pas** la date de fin d’impression réelle (une impression peut être supprimée, un fichier recopié, etc.).
 - **Fichiers supprimés** : aucune trace via l’API une fois partis du stockage vu par PrusaLink.
 - **Réseau** : accès **LAN** (ou tunnel) ; l’appareil doit être joignable depuis l’environnement qui exécute le client.
-- **Authentification** : **HTTP Digest** (schéma `digestAuth` dans la spec).
+- **Authentification** : **HTTP Digest** (schéma `digestAuth` dans la spec ; sur l’imprimante cette valeur correspond en pratique à la **PrusaLink API Key** / mot de passe affiché — dans l’outil du repo : **`PRUSALINK_API_KEY`**, repli **`PRUSALINK_PASSWORD`**).
 - **CORS** : les navigateurs n’appellent en général **pas** directement l’imprimante depuis une app web hébergée ; tout appel depuis le domaine du site nécessite un **proxy côté serveur** (SvelteKit `+server.ts`) ou une exécution **locale** (script, app desktop).
 - **Multi-outil / MMU** : les champs `… per tool` dans `PrintFileMetadata` imposent une règle de fusion (somme par outil, ou une ligne `PrintFilamentUsage` par outil si on modélise plusieurs bobines).
 
@@ -43,7 +43,8 @@ Document de recherche technique pour nourrir Filament Tracker à partir des donn
 
 ### Authentification
 
-- Schéma OpenAPI : **`client_jwt_token`** — clé API dans l’en-tête **`Authorization`** (valeur attendue par le backend mobile Prusa ; en pratique les outils communautaires utilisent un **JWT de session** obtenu depuis la session web — **stockage sensible**, rotation, ne jamais logger).
+- Schéma OpenAPI : **`client_jwt_token`** — secret dans l’en-tête **`Authorization: Bearer …`** (JWT de session et/ou **clé API** selon ce que ton compte Prusa exposes — **stockage sensible**, rotation, ne jamais logger ni commiter dans le dépôt).
+- Dans l’outil de capture locale du repo, la variable utilisée pour ce Bearer est **`PRUSA_CONNECT_API_KEY`** (avec repli **`PRUSA_CONNECT_BEARER_TOKEN`** pour anciens fichiers `.env`). Voir `tools/prusa-api-snapshot/.env.example`.
 
 ### Endpoints utiles pour l’historique / le contexte
 
@@ -86,6 +87,18 @@ Pour une app Filament Tracker **auto-hébergée / locale**, un `+server.ts` qui 
 
 ---
 
+## Outil CLI de capture JSON (`tools/prusa-api-snapshot`)
+
+Un script **Bun** dans ce même dépôt regroupe les requêtes utiles ci-dessus (PrusaLink : version / info / status / job / storage + échantillon de métadonnées fichiers ; Connect : printers / jobs `past`+`current` paginés, détail imprimante, premier écran storage) dans **un fichier JSON anonyme** sans secrets dans la sortie.
+
+- **`bun run snapshot`** dans ce dossier : respecte **`PRUSALINK_ENABLED`** et **`PRUSA_CONNECT_ENABLED`** du `.env`.
+- **`bun run snapshot:connect`** : **aucun** appel LAN (imprimante non sollicitée) — uniquement Connect si son flag est à `true`.
+- **`bun run snapshot:link`** : PrusaLink seul ; **aucun** appel vers Connect.
+
+Voir `tools/prusa-api-snapshot/README.md` pour l’installation et la liste complète des variables (`PRUSALINK_API_KEY`, `PRUSA_CONNECT_API_KEY`, etc.).
+
+---
+
 ## Format cible : `Print` et `PrintFilamentUsage`
 
 Types actuels : `src/lib/domain/print.ts`, `src/lib/domain/print-filament-usage.ts`.
@@ -124,7 +137,7 @@ Types actuels : `src/lib/domain/print.ts`, `src/lib/domain/print-filament-usage.
 2. **Enrichissement grammage** : si `fileHash` ou nom coïncide avec fichier accessible en PrusaLink (optionnel, config URL + digest), récupérer `PrintFileInfo.meta` pour `usedWeightG`.
 3. **PrusaLink seul** : assistant « parcourir stockage » + import des métadonnées fichier avec **avertissement date** + pas de liste de jobs historiques.
 4. **Spool mapping** : écran ou fichier de correspondance `(material, couleur?, fabricant?) → spoolId` réutilisable entre imports.
-5. **Sécurité & emplacement d’exécution** : décider officiellement proxy SvelteKit vs outil CLI pour les jetons Connect.
+5. **Sécurité & emplacement d’exécution** : décider officiellement proxy SvelteKit vs outil **`tools/prusa-api-snapshot`** (déjà utilisable hors navigateur avec `snapshot:connect` pour éviter tout accès LAN quand l’imprimante est occupée).
 
 ---
 
