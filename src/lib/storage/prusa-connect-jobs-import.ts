@@ -6,14 +6,17 @@
  * `filament_type` so {@link PrintFilamentUsage.spoolId} resolves without manual mapping.
  */
 
-import { randomUUID } from 'node:crypto';
-
 import type { LocalJsonDbSnapshot } from './local-json-db-schema';
 import { LOCAL_JSON_DB_SCHEMA_VERSION, LocalJsonDbSnapshotSchema } from './local-json-db-schema';
 
 import type { Print, PrintFilamentUsage } from '../domain';
 import type { FilamentStandardMaterial } from '../domain/enums';
 import type { Spool, SpoolMaterial } from '../domain/spool';
+
+/** UUID v4 sans `node:crypto` — utilisable navigateur et Node 18+. */
+function newRandomUuid(): string {
+	return crypto.randomUUID();
+}
 
 const STANDARD_MATERIALS = new Set<FilamentStandardMaterial>([
 	'PLA',
@@ -144,7 +147,7 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 	const spools: Spool[] = [];
 
 	for (const typeKey of usedByType.keys()) {
-		const id = randomUUID();
+		const id = newRandomUuid();
 		spoolIdByType.set(typeKey, id);
 		const sumG = usedByType.get(typeKey) ?? 0;
 		const bufferG = Math.max(10_000, Math.ceil(sumG * 0.1));
@@ -185,7 +188,7 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		const spoolId = spoolIdByType.get(typeKey);
 		if (!spoolId) continue;
 
-		let printId: string = randomUUID();
+		let printId: string = newRandomUuid();
 		if (typeof job.lifetime_id === 'string' && job.lifetime_id.length >= 30) {
 			printId = job.lifetime_id;
 		}
@@ -212,7 +215,7 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		});
 
 		printFilamentUsages.push({
-			id: randomUUID(),
+			id: newRandomUuid(),
 			printId,
 			spoolId,
 			usedWeightG: fg,
