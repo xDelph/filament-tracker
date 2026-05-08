@@ -46,3 +46,5 @@ export {
 	SpoolAdjustmentPersistenceError,
 } from './spool-adjustments';
 export { loadSpoolAuditData, type SpoolUsageWithPrint } from './spool-detail';
+export { buildLocalJsonSnapshotFromPrusaConnectJobsExport } from './prusa-connect-jobs-import';
+export type { BuildPrusaConnectJobsSnapshotOptions } from './prusa-connect-jobs-import';

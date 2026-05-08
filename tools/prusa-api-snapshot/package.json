@@ -1,0 +1,20 @@
+{
+	"name": "@filament-tracker/prusa-api-snapshot",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"snapshot": "bun run src/index.ts",
+		"snapshot:link": "bun run src/index.ts --prusalink-only",
+		"snapshot:connect": "bun run src/index.ts --prusaconnect-only",
+		"check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"digest-fetch": "^3.1.1",
+		"dotenv": "^16.5.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.15.30",
+		"typescript": "^5.8.3"
+	}
+}

@@ -1,0 +1,3 @@
+# Généré par `bun run snapshot` — contient des données API, pas des secrets.
+out/
+.env
