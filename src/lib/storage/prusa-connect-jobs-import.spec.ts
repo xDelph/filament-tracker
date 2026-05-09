@@ -81,7 +81,7 @@ describe('buildLocalJsonSnapshotFromPrusaConnectJobsExport', () => {
 		expect(snap.tables.printFilamentUsages[0]!.usedLengthMm).toBe(4000);
 	});
 
-	it('mappe FIN_STOPPED vers annulée', () => {
+	it('mappe FIN_STOPPED vers annulée et conserve print_height brut (pas interprété comme couches)', () => {
 		const snap = buildLocalJsonSnapshotFromPrusaConnectJobsExport({
 			jobs: [
 				{
@@ -90,6 +90,7 @@ describe('buildLocalJsonSnapshotFromPrusaConnectJobsExport', () => {
 					start: 1_700_000_000,
 					end: 1_700_001_000,
 					time_printing: 500,
+					print_height: 42,
 					file: {
 						display_name: 'stopped.gcode',
 						name: 'stopped.gcode',
@@ -99,6 +100,8 @@ describe('buildLocalJsonSnapshotFromPrusaConnectJobsExport', () => {
 			],
 		});
 		expect(snap.tables.prints[0]!.status).toBe('cancelled');
+		expect(snap.tables.printSettings[0]!.connectPrintHeightRaw).toBe(42);
+		expect(snap.tables.printSettings[0]!.layerHeightMm).toBeUndefined();
 	});
 
 	it('accepte un job avec méta minimale (champs optionnels absents)', () => {
@@ -116,6 +119,101 @@ describe('buildLocalJsonSnapshotFromPrusaConnectJobsExport', () => {
 		});
 		expect(snap.tables.prints).toHaveLength(1);
 		expect(snap.tables.printSettings[0]!.layerHeightMm).toBeUndefined();
+		expect(snap.tables.printFilamentUsages[0]!.usedWeightG).toBe(5);
+	});
+
+	it("importe un job incomplet (ex. id 43) sans filament_used_g — impression sans ligne d'usage", () => {
+		const snap = buildLocalJsonSnapshotFromPrusaConnectJobsExport({
+			jobs: [
+				{
+					id: 43,
+					state: 'FIN_OK',
+					file: {
+						display_name: 'partial.gcode',
+					},
+				},
+			],
+		});
+		expect(snap.tables.prints).toHaveLength(1);
+		expect(snap.tables.printExternalImports[0]!.externalJobId).toBe('prusa-connect-job-43');
+		expect(snap.tables.printFilamentUsages).toHaveLength(0);
+		expect(snap.tables.prints[0]!.name).toContain('partial');
+	});
+
+	it('projette file.sync et planned.conditions lorsque présents', () => {
+		const snap = buildLocalJsonSnapshotFromPrusaConnectJobsExport(
+			{
+				jobs: [
+					{
+						lifetime_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+						state: 'FIN_OK',
+						start: 1_700_000_000,
+						end: 1_700_001_000,
+						planned: {
+							conditions: {
+								layer_height: 0.15,
+								bed_temp: 65,
+								nozzle_temp: 210,
+								filament_type: 'PETG',
+							},
+						},
+						file: {
+							display_name: 'sync.gcode',
+							sync: { state: 'synced', updated: 1_700_000_500 },
+							meta: {
+								...metaMinimal(8),
+								m_timestamp: 1_699_999_000,
+							},
+						},
+					},
+				],
+			},
+			{ now: new Date('2026-05-09T12:00:00.000Z') },
+		);
+		const pf = snap.tables.printFiles[0]!;
+		expect(pf.connectSyncState).toBe('synced');
+		expect(pf.sourceMetaTimestampSec).toBe(1_699_999_000);
+		const ps = snap.tables.printSettings[0]!;
+		expect(ps.connectPlannedLayerHeightMm).toBe(0.15);
+		expect(ps.connectPlannedBedTempC).toBe(65);
+		expect(ps.connectPlannedNozzleTempC).toBe(210);
+		expect(ps.connectPlannedFilamentType).toBe('PETG');
+	});
+
+	it('réimport identique : même snapshot (idempotence par externalJobId)', () => {
+		const payload = {
+			jobs: [
+				{
+					lifetime_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+					state: 'FIN_OK',
+					end: 1_700_002_000,
+					file: { name: 'a.gcode', meta: metaMinimal(3) },
+				},
+			],
+		};
+		const a = buildLocalJsonSnapshotFromPrusaConnectJobsExport(payload, {
+			now: new Date('2026-05-09T15:00:00.000Z'),
+		});
+		const b = buildLocalJsonSnapshotFromPrusaConnectJobsExport(payload, {
+			now: new Date('2026-05-09T15:00:00.000Z'),
+		});
+		expect(a).toEqual(b);
+	});
+
+	it('ignore le second job si même externalJobId dans le même export', () => {
+		const snap = buildLocalJsonSnapshotFromPrusaConnectJobsExport({
+			jobs: [
+				{
+					lifetime_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+					file: { meta: metaMinimal(5) },
+				},
+				{
+					lifetime_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+					file: { display_name: 'dup.gcode', meta: metaMinimal(99) },
+				},
+			],
+		});
+		expect(snap.tables.prints).toHaveLength(1);
 		expect(snap.tables.printFilamentUsages[0]!.usedWeightG).toBe(5);
 	});
 
