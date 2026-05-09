@@ -4,7 +4,6 @@ export {
 	LocalJsonDbSnapshotSchema,
 	collectLocalJsonDbSnapshot,
 	emptyLocalJsonDbSnapshot,
-	parseAndMigrateLocalJsonDbSnapshot,
 	replaceIndexedDbFromLocalJsonSnapshot,
 	type LocalJsonDbSnapshot,
 } from './local-json-snapshot';

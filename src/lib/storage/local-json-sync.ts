@@ -1,6 +1,6 @@
 import { db, type FilamentTrackerDatabase } from './db';
 import {
-	parseAndMigrateLocalJsonDbSnapshot,
+	LocalJsonDbSnapshotSchema,
 	collectLocalJsonDbSnapshot,
 	replaceIndexedDbFromLocalJsonSnapshot,
 	type LocalJsonDbSnapshot,
@@ -93,7 +93,7 @@ export async function hydrateIndexedDbFromLocalJson(
 	database: FilamentTrackerDatabase = db,
 ): Promise<void> {
 	if (!shouldSync(database)) return;
-	const snapshot = parseAndMigrateLocalJsonDbSnapshot(await requestLocalJsonDbSnapshot());
+	const snapshot = LocalJsonDbSnapshotSchema.parse(await requestLocalJsonDbSnapshot());
 	if (!snapshotHasData(snapshot) && (await indexedDbHasData(database))) {
 		await writeSnapshotToLocalJson(await collectLocalJsonDbSnapshot(database));
 		return;

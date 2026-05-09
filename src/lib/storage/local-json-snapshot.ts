@@ -5,7 +5,6 @@ import {
 	type LocalJsonDbSnapshot,
 } from './local-json-db-schema';
 
-import { parseAndMigrateLocalJsonDbSnapshot } from './local-json-db-migrate';
 import { db, type FilamentTrackerDatabase } from './db';
 
 export {
@@ -14,8 +13,6 @@ export {
 	emptyLocalJsonDbSnapshot,
 	type LocalJsonDbSnapshot,
 } from './local-json-db-schema';
-
-export { parseAndMigrateLocalJsonDbSnapshot } from './local-json-db-migrate';
 
 export async function collectLocalJsonDbSnapshot(
 	database: FilamentTrackerDatabase = db,
@@ -63,7 +60,7 @@ export async function replaceIndexedDbFromLocalJsonSnapshot(
 	snapshot: LocalJsonDbSnapshot,
 	database: FilamentTrackerDatabase = db,
 ): Promise<void> {
-	const parsed = parseAndMigrateLocalJsonDbSnapshot(snapshot);
+	const parsed = LocalJsonDbSnapshotSchema.parse(snapshot);
 
 	const stores = [
 		database.spools,

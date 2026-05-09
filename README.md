@@ -12,7 +12,7 @@ Technical notes on importing print history from PrusaLink / Prusa Connect (APIs,
 
 To capture **live API responses** into a JSON file (LAN + Connect), use the Bun tool in [tools/prusa-api-snapshot/README.md](tools/prusa-api-snapshot/README.md).
 
-Si tu récupères plutôt l’export riche **`jobs`** (avec `file.meta` Prusa Connect), tu peux le convertir en **sauvegarde locale importable** (`schemaVersion: 1`, même format que la route `PUT /api/local-db`) avec :
+Si tu récupères plutôt l’export riche **`jobs`** (avec `file.meta` Prusa Connect), tu peux le convertir en **sauvegarde locale importable** (`schemaVersion: 2`, même format que la route `PUT /api/local-db`) avec :
 
 ```sh
 bun run import:prusa-jobs -- path/to/prusa_connect_jobs.json path/to/out.snapshot.json
