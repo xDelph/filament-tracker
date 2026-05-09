@@ -52,4 +52,17 @@ export {
 } from './spool-adjustments';
 export { loadSpoolAuditData, type SpoolUsageWithPrint } from './spool-detail';
 export { buildLocalJsonSnapshotFromPrusaConnectJobsExport } from './prusa-connect-jobs-import';
-export type { BuildPrusaConnectJobsSnapshotOptions } from './prusa-connect-jobs-import';
+export type {
+	BuildPrusaConnectJobsSnapshotOptions,
+	PrusaConnectCostBasis,
+	PrusaConnectObjectsMode,
+	PrusaJobRow,
+} from './prusa-connect-jobs-import';
+export { externalJobIdFromPrusaJob, filamentTypeKeyFromPrusaMeta } from './prusa-connect-jobs-import';
+export {
+	previewPrusaConnectJobsExport,
+	type PrusaConnectJobsPreview,
+	type PrusaConnectPreviewJobRow,
+	type PrusaConnectPreviewSummary,
+} from './prusa-connect-jobs-preview';
+export { mergePrusaConnectDeltaIntoBase } from './prusa-connect-jobs-merge';

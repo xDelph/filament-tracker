@@ -2,23 +2,26 @@
  * Converts a rich Prusa Connect "jobs export" JSON (with `jobs[].file.meta`) into a
  * `LocalJsonDbSnapshot` suitable for PUT `/api/local-db` after validation.
  *
- * Does not persist PII from `source_info` / `owner`. Creates one synthetic {@link Spool} per distinct
- * `filament_type` so {@link PrintFilamentUsage.spoolId} resolves without manual mapping.
+ * Does not persist PII from `source_info` / `owner`. Optionally maps filament types to existing
+ * {@link Spool}s or creates synthetic spools per distinct type.
  */
 
 import { z } from 'zod';
 
-import type {
-	Print,
-	PrintExternalImport,
-	PrintFile,
-	PrintFilamentUsage,
-	PrintObject,
-	PrintSettings,
-	Printer,
+import {
+	materialCostForGramsAtSpoolRate,
+	type MoneyMinor,
+	type Print,
+	type PrintExternalImport,
+	type PrintFile,
+	type PrintFilamentUsage,
+	type PrintObject,
+	type PrintSettings,
+	type Printer,
+	type Spool,
 } from '../domain';
 import type { FilamentStandardMaterial } from '../domain/enums';
-import type { Spool, SpoolMaterial } from '../domain/spool';
+import type { SpoolMaterial } from '../domain/spool';
 
 import type { LocalJsonDbSnapshot } from './local-json-db-schema';
 import { LOCAL_JSON_DB_SCHEMA_VERSION, LocalJsonDbSnapshotSchema } from './local-json-db-schema';
@@ -38,14 +41,36 @@ const STANDARD_MATERIALS = new Set<FilamentStandardMaterial>([
 	'PC',
 ]);
 
+export type PrusaConnectCostBasis = 'slicer' | 'spool_inventory';
+export type PrusaConnectObjectsMode = 'per_stl' | 'aggregated';
+
 export type BuildPrusaConnectJobsSnapshotOptions = {
 	/** ISO 4217 code for slicer monetary fields that have no currency in the JSON. */
 	defaultCurrency?: string;
 	/** Override "now" for timestamps (tests). */
 	now?: Date;
+	/** Coût matière enregistré sur la ligne : estimation slicer ou tarif moyen de la bobine. */
+	costBasis?: PrusaConnectCostBasis;
+	/**
+	 * Jobs `FIN_STOPPED` : conserver une ligne de consommation (comportement historique) ou
+	 * n’enregistrer que l’impression sans consommation de bobine.
+	 */
+	stoppedJobsConsumeFilament?: boolean;
+	/** Objets issus du slicer : une ligne par STL ou une seule ligne agrégée. */
+	objectsMode?: PrusaConnectObjectsMode;
+	/** Clé type filament (normalisée majuscules) → id bobine existante. */
+	filamentTypeToSpoolId?: Record<string, string>;
+	/** Bobines déjà présentes (ex. base locale) pour le coût « tarif bobine » sur un map explicite. */
+	knownSpoolsById?: Map<string, Spool>;
+	/** Créer des bobines synthétiques pour les types non mappés (défaut `true`). */
+	createSyntheticSpools?: boolean;
+	/** Identifiants job Prusa déjà importés — ces entrées sont ignorées (pas de doublon visible). */
+	skipExternalJobIds?: ReadonlySet<string>;
+	/** UUID imprimante Prusa Connect → id `Printer` déjà en base. */
+	existingPrinterIdByUuid?: Map<string, string>;
 };
 
-type PrusaJobRow = {
+export type PrusaJobRow = {
 	id?: number;
 	origin_id?: number;
 	lifetime_id?: string;
@@ -136,7 +161,9 @@ function truncateName(raw: string, max = 200): string {
 	return t.length <= max ? t : t.slice(0, max);
 }
 
-function filamentTypeKey(meta: NonNullable<PrusaJobRow['file']>['meta']): string {
+export function filamentTypeKeyFromPrusaMeta(
+	meta: NonNullable<PrusaJobRow['file']>['meta'] | undefined,
+): string {
 	const ft = meta?.filament_type?.trim().toUpperCase();
 	return ft && ft.length > 0 ? ft : 'UNKNOWN';
 }
@@ -162,7 +189,7 @@ function printIdFromJob(job: PrusaJobRow): string {
 	return newRandomUuid();
 }
 
-function externalJobIdFromJob(job: PrusaJobRow): string {
+export function externalJobIdFromPrusaJob(job: PrusaJobRow): string {
 	if (typeof job.lifetime_id === 'string' && job.lifetime_id.length > 0) {
 		return job.lifetime_id.slice(0, 256);
 	}
@@ -217,6 +244,31 @@ function elapsedSecFromJob(job: PrusaJobRow): number | undefined {
 	return Math.round(job.end - job.start);
 }
 
+function filamentUsageCostsForJob(
+	spoolId: string,
+	filamentG: number,
+	meta: NonNullable<NonNullable<PrusaJobRow['file']>['meta']>,
+	currency: string,
+	costBasis: PrusaConnectCostBasis,
+	spools: Spool[],
+	knownSpoolsById: Map<string, Spool>,
+): { cost: MoneyMinor; slicerCost: MoneyMinor | undefined } {
+	const slicerMoney = costMinor(meta.filament_cost, currency);
+	const slicerRef =
+		slicerMoney.minorUnits > 0 || meta.filament_cost !== undefined ? slicerMoney : undefined;
+	if (costBasis === 'slicer') {
+		return { cost: slicerMoney, slicerCost: slicerRef };
+	}
+	const spoolRow = spools.find((s) => s.id === spoolId) ?? knownSpoolsById.get(spoolId);
+	if (!spoolRow) {
+		return { cost: slicerMoney, slicerCost: slicerRef };
+	}
+	return {
+		cost: materialCostForGramsAtSpoolRate(spoolRow, filamentG),
+		slicerCost: slicerRef,
+	};
+}
+
 /** Parse and convert; throws if the snapshot does not satisfy {@link LocalJsonDbSnapshotSchema}. */
 export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 	raw: unknown,
@@ -228,21 +280,39 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		'EUR'
 	).toUpperCase();
 	const nowIso = (options.now ?? new Date()).toISOString();
+	const costBasis: PrusaConnectCostBasis = options.costBasis ?? 'slicer';
+	const stoppedJobsConsumeFilament = options.stoppedJobsConsumeFilament !== false;
+	const objectsMode: PrusaConnectObjectsMode = options.objectsMode ?? 'per_stl';
+	const createSyntheticSpools = options.createSyntheticSpools !== false;
+	const skipExternalJobIds = options.skipExternalJobIds ?? new Set<string>();
+	const filamentMap = options.filamentTypeToSpoolId ?? {};
+	const knownSpoolsById = options.knownSpoolsById ?? new Map<string, Spool>();
+	const existingPrinterIdByUuid = options.existingPrinterIdByUuid ?? new Map<string, string>();
+
+	function mappedSpoolIdForType(typeKey: string): string | undefined {
+		const k = typeKey.trim().toUpperCase();
+		return filamentMap[k] ?? filamentMap[typeKey];
+	}
 
 	const root = raw as PrusaJobsExportRoot;
 	const jobsRaw = Array.isArray(root.jobs) ? root.jobs : [];
 
-	const rows: PrusaJobRow[] = jobsRaw.filter(
+	let rows: PrusaJobRow[] = jobsRaw.filter(
 		(j): j is PrusaJobRow =>
 			j !== null && typeof j === 'object' && typeof j?.file?.meta?.filament_used_g === 'number',
 	);
 
+	rows = rows.filter((j) => !skipExternalJobIds.has(externalJobIdFromPrusaJob(j)));
+
 	const usedByType = new Map<string, number>();
 	for (const j of rows) {
 		const meta = j.file!.meta!;
-		const typeKey = filamentTypeKey(meta);
+		const typeKey = filamentTypeKeyFromPrusaMeta(meta);
 		const g = meta.filament_used_g!;
 		if (g <= 0) continue;
+		const isStopped = j.state === 'FIN_STOPPED';
+		const countsTowardSpool = !(isStopped && !stoppedJobsConsumeFilament);
+		if (!countsTowardSpool) continue;
 		usedByType.set(typeKey, (usedByType.get(typeKey) ?? 0) + g);
 	}
 
@@ -250,6 +320,14 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 	const spools: Spool[] = [];
 
 	for (const typeKey of usedByType.keys()) {
+		const mappedId = mappedSpoolIdForType(typeKey);
+		if (mappedId) {
+			spoolIdByType.set(typeKey, mappedId);
+			continue;
+		}
+		if (!createSyntheticSpools) {
+			continue;
+		}
 		const id = newRandomUuid();
 		spoolIdByType.set(typeKey, id);
 		const sumG = usedByType.get(typeKey) ?? 0;
@@ -273,7 +351,7 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		});
 	}
 
-	const printerIdByUuid = new Map<string, string>();
+	const printerIdByUuid = new Map<string, string>(existingPrinterIdByUuid);
 	const printers: Printer[] = [];
 
 	for (const j of rows) {
@@ -310,12 +388,18 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		const fg = meta.filament_used_g!;
 		if (!(fg > 0)) continue;
 
-		const typeKey = filamentTypeKey(meta);
-		const spoolId = spoolIdByType.get(typeKey);
-		if (!spoolId) continue;
+		const typeKey = filamentTypeKeyFromPrusaMeta(meta);
+		const isStopped = job.state === 'FIN_STOPPED';
+		const omitFilamentUsage = isStopped && !stoppedJobsConsumeFilament;
+
+		let spoolId: string | undefined;
+		if (!omitFilamentUsage) {
+			spoolId = spoolIdByType.get(typeKey);
+			if (!spoolId) continue;
+		}
 
 		const printId = printIdFromJob(job);
-		const extJob = externalJobIdFromJob(job);
+		const extJob = externalJobIdFromPrusaJob(job);
 		const printerUuid = job.printer_uuid?.trim();
 		const printerId = printerUuid ? printerIdByUuid.get(printerUuid) : undefined;
 
@@ -339,8 +423,6 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		const estSec = meta.estimated_print_time;
 		const estimatedPrintTimeSec =
 			typeof estSec === 'number' && estSec >= 0 && Number.isFinite(estSec) ? Math.round(estSec) : undefined;
-
-		const slicerMoney = costMinor(meta.filament_cost, currency);
 
 		prints.push({
 			id: printId,
@@ -422,7 +504,14 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		});
 
 		const stlList = meta.objects_info?.objects;
-		if (Array.isArray(stlList)) {
+		if (objectsMode === 'aggregated') {
+			printObjects.push({
+				id: newRandomUuid(),
+				printId,
+				name: truncateName(`${nm} · agrégé`),
+				quantity: 1,
+			});
+		} else if (Array.isArray(stlList)) {
 			for (const obj of stlList) {
 				const on = typeof obj?.name === 'string' ? obj.name.trim() : '';
 				if (!on) continue;
@@ -435,6 +524,8 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 			}
 		}
 
+		if (omitFilamentUsage || !spoolId) continue;
+
 		const usedMm =
 			typeof meta.filament_used_mm === 'number' && meta.filament_used_mm >= 0
 				? meta.filament_used_mm
@@ -442,13 +533,23 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 					? meta.filament_used_m * 1000
 					: undefined;
 
+		const { cost: materialCost, slicerCost } = filamentUsageCostsForJob(
+			spoolId,
+			fg,
+			meta,
+			currency,
+			costBasis,
+			spools,
+			knownSpoolsById,
+		);
+
 		printFilamentUsages.push({
 			id: newRandomUuid(),
 			printId,
 			spoolId,
 			usedWeightG: fg,
 			wasteWeightG: 0,
-			cost: slicerMoney,
+			cost: materialCost,
 			usedLengthMm: usedMm,
 			usedVolumeMm3:
 				typeof meta.filament_used_mm3 === 'number' && meta.filament_used_mm3 >= 0
@@ -458,8 +559,7 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 				typeof meta.filament_used_cm3 === 'number' && meta.filament_used_cm3 >= 0
 					? meta.filament_used_cm3
 					: undefined,
-			slicerCost:
-				slicerMoney.minorUnits > 0 || meta.filament_cost !== undefined ? slicerMoney : undefined,
+			slicerCost,
 			createdAt: printedAtIso,
 			updatedAt: printedAtIso,
 		});
