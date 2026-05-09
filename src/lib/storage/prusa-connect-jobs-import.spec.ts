@@ -90,6 +90,7 @@ describe('buildLocalJsonSnapshotFromPrusaConnectJobsExport', () => {
 					start: 1_700_000_000,
 					end: 1_700_001_000,
 					time_printing: 500,
+					print_height: 42,
 					file: {
 						display_name: 'stopped.gcode',
 						name: 'stopped.gcode',
@@ -99,6 +100,7 @@ describe('buildLocalJsonSnapshotFromPrusaConnectJobsExport', () => {
 			],
 		});
 		expect(snap.tables.prints[0]!.status).toBe('cancelled');
+		expect(snap.tables.printSettings[0]!.connectPrintHeightRaw).toBe(42);
 	});
 
 	it('accepte un job avec méta minimale (champs optionnels absents)', () => {
