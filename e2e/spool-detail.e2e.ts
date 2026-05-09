@@ -1,9 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { FILAMENT_TRACKER_INDEXED_DB_NAME } from '../src/lib/storage/db';
+
 test.describe('spool detail weight adjustment', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto('/dashboard');
-		await page.evaluate(() => indexedDB.deleteDatabase('filament-tracker'));
+		await page.evaluate(
+			([current, legacy]) => {
+				indexedDB.deleteDatabase(current);
+				indexedDB.deleteDatabase(legacy);
+			},
+			[FILAMENT_TRACKER_INDEXED_DB_NAME, 'filament-tracker'] as const,
+		);
 		await page.reload();
 		await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible();
 	});
