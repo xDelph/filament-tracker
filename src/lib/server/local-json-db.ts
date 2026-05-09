@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 import {
-	LocalJsonDbSnapshotSchema,
+	parseAndMigrateLocalJsonDbSnapshot,
 	emptyLocalJsonDbSnapshot,
 	type LocalJsonDbSnapshot,
 } from '$lib/storage/local-json-snapshot';
@@ -15,7 +15,7 @@ export async function readLocalJsonDb(filePath?: string): Promise<LocalJsonDbSna
 	const path = localJsonDbPath(filePath);
 	try {
 		const content = await readFile(path, 'utf8');
-		return LocalJsonDbSnapshotSchema.parse(JSON.parse(content));
+		return parseAndMigrateLocalJsonDbSnapshot(JSON.parse(content));
 	} catch (error) {
 		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
 			return emptyLocalJsonDbSnapshot();
@@ -25,10 +25,10 @@ export async function readLocalJsonDb(filePath?: string): Promise<LocalJsonDbSna
 }
 
 export async function writeLocalJsonDb(
-	snapshot: LocalJsonDbSnapshot,
+	snapshot: LocalJsonDbSnapshot | unknown,
 	filePath?: string,
 ): Promise<LocalJsonDbSnapshot> {
-	const parsed = LocalJsonDbSnapshotSchema.parse(snapshot);
+	const parsed = parseAndMigrateLocalJsonDbSnapshot(snapshot);
 	const path = localJsonDbPath(filePath);
 	const temporaryPath = `${path}.${process.pid}.${Date.now()}.tmp`;
 

@@ -2,16 +2,26 @@
  * Converts a rich Prusa Connect "jobs export" JSON (with `jobs[].file.meta`) into a
  * `LocalJsonDbSnapshot` suitable for PUT `/api/local-db` after validation.
  *
- * Does not persist PII from `source_info`. Creates one synthetic {@link Spool} per distinct
+ * Does not persist PII from `source_info` / `owner`. Creates one synthetic {@link Spool} per distinct
  * `filament_type` so {@link PrintFilamentUsage.spoolId} resolves without manual mapping.
  */
 
-import type { LocalJsonDbSnapshot } from './local-json-db-schema';
-import { LOCAL_JSON_DB_SCHEMA_VERSION, LocalJsonDbSnapshotSchema } from './local-json-db-schema';
+import { z } from 'zod';
 
-import type { Print, PrintFilamentUsage } from '../domain';
+import type {
+	Print,
+	PrintExternalImport,
+	PrintFile,
+	PrintFilamentUsage,
+	PrintObject,
+	PrintSettings,
+	Printer,
+} from '../domain';
 import type { FilamentStandardMaterial } from '../domain/enums';
 import type { Spool, SpoolMaterial } from '../domain/spool';
+
+import type { LocalJsonDbSnapshot } from './local-json-db-schema';
+import { LOCAL_JSON_DB_SCHEMA_VERSION, LocalJsonDbSnapshotSchema } from './local-json-db-schema';
 
 /** UUID v4 sans `node:crypto` — utilisable navigateur et Node 18+. */
 function newRandomUuid(): string {
@@ -36,20 +46,52 @@ export type BuildPrusaConnectJobsSnapshotOptions = {
 };
 
 type PrusaJobRow = {
+	id?: number;
+	origin_id?: number;
 	lifetime_id?: string;
 	state?: string;
 	start?: number;
 	end?: number;
+	time_printing?: number;
+	source?: string;
+	print_height?: number;
 	printer_uuid?: string;
 	hash?: string;
-	source?: string;
 	file?: {
-		display_name?: string;
+		type?: string;
 		name?: string;
+		display_name?: string;
+		size?: number;
+		hash?: string;
+		upload_id?: string;
+		uploaded?: number;
+		preview_url?: string;
+		preview_mimetype?: string;
+		path?: string;
+		display_path?: string;
 		meta?: {
 			filament_used_g?: number;
 			filament_type?: string;
 			filament_cost?: number;
+			filament_used_mm?: number;
+			filament_used_m?: number;
+			filament_used_mm3?: number;
+			filament_used_cm3?: number;
+			estimated_print_time?: number;
+			layer_height?: number;
+			nozzle_diameter?: number | string;
+			total_height?: number;
+			max_layer_z?: number;
+			printer_model?: string;
+			fill_density?: string;
+			support_material?: string | number;
+			temperature?: string | number;
+			bed_temperature?: string | number;
+			brim_width?: number | string;
+			ironing?: string | number;
+			nozzle_high_flow?: string | number;
+			filament_abrasive?: string | number;
+			objects_info?: { objects?: Array<{ name?: string }> };
 		};
 	};
 };
@@ -113,6 +155,68 @@ function costMinor(cost: number | undefined, currency: string): {
 	};
 }
 
+function printIdFromJob(job: PrusaJobRow): string {
+	if (typeof job.lifetime_id === 'string' && z.string().uuid().safeParse(job.lifetime_id).success) {
+		return job.lifetime_id;
+	}
+	return newRandomUuid();
+}
+
+function externalJobIdFromJob(job: PrusaJobRow): string {
+	if (typeof job.lifetime_id === 'string' && job.lifetime_id.length > 0) {
+		return job.lifetime_id.slice(0, 256);
+	}
+	if (typeof job.id === 'number' && Number.isFinite(job.id)) {
+		return `prusa-connect-job-${job.id}`;
+	}
+	return newRandomUuid();
+}
+
+function finiteNonNegOpt(v: unknown): number | undefined {
+	if (v === undefined || v === null || v === '') return undefined;
+	const n = typeof v === 'string' ? parseFloat(v) : Number(v);
+	if (!Number.isFinite(n) || n < 0) return undefined;
+	return n;
+}
+
+function intOpt(v: unknown): number | undefined {
+	if (v === undefined || v === null || v === '') return undefined;
+	const n = typeof v === 'string' ? parseInt(v, 10) : Math.trunc(Number(v));
+	if (!Number.isFinite(n)) return undefined;
+	return n;
+}
+
+function triBool(v: unknown): boolean | undefined {
+	if (v === undefined || v === null) return undefined;
+	if (typeof v === 'boolean') return v;
+	const n = Number(v);
+	if (n === 0) return false;
+	if (n === 1) return true;
+	return undefined;
+}
+
+function parseFillDensityPercent(raw: string | undefined): number | undefined {
+	if (!raw || typeof raw !== 'string') return undefined;
+	const m = raw.trim().match(/^([\d.,]+)\s*%?$/);
+	if (!m) return undefined;
+	const n = parseFloat(m[1]!.replace(',', '.'));
+	if (!Number.isFinite(n) || n < 0) return undefined;
+	return n;
+}
+
+function elapsedSecFromJob(job: PrusaJobRow): number | undefined {
+	if (
+		typeof job.start !== 'number' ||
+		typeof job.end !== 'number' ||
+		!Number.isFinite(job.start) ||
+		!Number.isFinite(job.end) ||
+		job.end < job.start
+	) {
+		return undefined;
+	}
+	return Math.round(job.end - job.start);
+}
+
 /** Parse and convert; throws if the snapshot does not satisfy {@link LocalJsonDbSnapshotSchema}. */
 export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 	raw: unknown,
@@ -133,7 +237,6 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 			j !== null && typeof j === 'object' && typeof j?.file?.meta?.filament_used_g === 'number',
 	);
 
-	/** Total grams consumed per normalized filament label (for plausible spool remaining). */
 	const usedByType = new Map<string, number>();
 	for (const j of rows) {
 		const meta = j.file!.meta!;
@@ -170,8 +273,31 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		});
 	}
 
+	const printerIdByUuid = new Map<string, string>();
+	const printers: Printer[] = [];
+
+	for (const j of rows) {
+		const u = j.printer_uuid?.trim();
+		if (!u || printerIdByUuid.has(u)) continue;
+		const pid = newRandomUuid();
+		printerIdByUuid.set(u, pid);
+		const modelMeta = j.file?.meta?.printer_model?.trim();
+		printers.push({
+			id: pid,
+			source: 'prusa_connect',
+			externalPrinterUuid: u.slice(0, 256),
+			model: modelMeta && modelMeta.length > 0 ? truncateName(modelMeta, 500) : undefined,
+			createdAt: nowIso,
+			updatedAt: nowIso,
+		});
+	}
+
 	const prints: Print[] = [];
 	const printFilamentUsages: PrintFilamentUsage[] = [];
+	const printExternalImports: PrintExternalImport[] = [];
+	const printSettings: PrintSettings[] = [];
+	const printFiles: PrintFile[] = [];
+	const printObjects: PrintObject[] = [];
 
 	const sortedRows = [...rows].sort((a, b) => {
 		const ta = typeof a?.end === 'number' ? a.end : typeof a?.start === 'number' ? a.start : 0;
@@ -188,31 +314,133 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 		const spoolId = spoolIdByType.get(typeKey);
 		if (!spoolId) continue;
 
-		let printId: string = newRandomUuid();
-		if (typeof job.lifetime_id === 'string' && job.lifetime_id.length >= 30) {
-			printId = job.lifetime_id;
-		}
+		const printId = printIdFromJob(job);
+		const extJob = externalJobIdFromJob(job);
+		const printerUuid = job.printer_uuid?.trim();
+		const printerId = printerUuid ? printerIdByUuid.get(printerUuid) : undefined;
 
 		const file = job.file!;
 		const nm = truncateName(file.display_name ?? file.name ?? 'Sans nom');
 		const status = printStatusFromConnectState(job.state);
 		const printedAtIso = isoFromUnixSeconds(job.end, isoFromUnixSeconds(job.start, nowIso));
+		const startedAtIso =
+			typeof job.start === 'number' && Number.isFinite(job.start)
+				? isoFromUnixSeconds(job.start, printedAtIso)
+				: undefined;
+		const finishedAtIso =
+			typeof job.end === 'number' && Number.isFinite(job.end)
+				? isoFromUnixSeconds(job.end, printedAtIso)
+				: undefined;
+		const timePrintingSec =
+			typeof job.time_printing === 'number' && job.time_printing >= 0 && Number.isFinite(job.time_printing)
+				? Math.round(job.time_printing)
+				: undefined;
+		const elapsedSec = elapsedSecFromJob(job);
+		const estSec = meta.estimated_print_time;
+		const estimatedPrintTimeSec =
+			typeof estSec === 'number' && estSec >= 0 && Number.isFinite(estSec) ? Math.round(estSec) : undefined;
 
-		const metaBits: string[] = ['Source: export Prusa Connect jobs'];
-		if (typeof job.hash === 'string') metaBits.push(`hash fichier: ${job.hash}`);
-		if (typeof job.printer_uuid === 'string') metaBits.push(`printer_uuid: ${job.printer_uuid}`);
-		metaBits.push(`state_connect: ${job.state ?? '?'}`);
-		metaBits.push('Données compte utilisateur omises volontairement (source_info non importé).');
+		const slicerMoney = costMinor(meta.filament_cost, currency);
 
 		prints.push({
 			id: printId,
 			name: nm,
 			printedAt: printedAtIso,
 			status,
-			notes: metaBits.join(' · ').slice(0, 5000),
+			printerId,
+			startedAt: startedAtIso,
+			finishedAt: finishedAtIso,
+			timePrintingSec,
+			elapsedSec,
+			estimatedPrintTimeSec,
 			createdAt: printedAtIso,
 			updatedAt: printedAtIso,
 		});
+
+		printExternalImports.push({
+			id: newRandomUuid(),
+			printId,
+			source: 'prusa_connect',
+			externalJobId: extJob,
+			externalConnectId: typeof job.id === 'number' && Number.isFinite(job.id) ? job.id : undefined,
+			externalOriginId:
+				typeof job.origin_id === 'number' && Number.isFinite(job.origin_id) ? job.origin_id : undefined,
+			fileHash: typeof job.hash === 'string' && job.hash.length > 0 ? job.hash.slice(0, 512) : undefined,
+			importedAt: nowIso,
+		});
+
+		const settingsId = newRandomUuid();
+		const phRaw = finiteNonNegOpt(job.print_height);
+		printSettings.push({
+			id: settingsId,
+			printId,
+			nozzleDiameterMm: finiteNonNegOpt(meta.nozzle_diameter),
+			nozzleHighFlow: triBool(meta.nozzle_high_flow),
+			layerHeightMm: finiteNonNegOpt(meta.layer_height),
+			totalHeightMm: finiteNonNegOpt(meta.total_height),
+			maxLayerZMm: finiteNonNegOpt(meta.max_layer_z),
+			fillDensityPercent: parseFillDensityPercent(meta.fill_density),
+			supportMaterial: triBool(meta.support_material),
+			brimWidthMm: finiteNonNegOpt(meta.brim_width),
+			ironing: triBool(meta.ironing),
+			nozzleTemperatureC: intOpt(meta.temperature),
+			bedTemperatureC: intOpt(meta.bed_temperature),
+			filamentAbrasive: triBool(meta.filament_abrasive),
+			printerModelRaw:
+				typeof meta.printer_model === 'string' && meta.printer_model.trim().length > 0
+					? truncateName(meta.printer_model, 500)
+					: undefined,
+			connectPrintHeightRaw: phRaw,
+		});
+
+		const fileRow = job.file!;
+		const up = fileRow.uploaded;
+		const uploadedAt =
+			typeof up === 'number' && Number.isFinite(up) ? isoFromUnixSeconds(up, nowIso) : undefined;
+
+		printFiles.push({
+			id: newRandomUuid(),
+			printId,
+			fileType: typeof fileRow.type === 'string' ? fileRow.type.slice(0, 64) : undefined,
+			fileName: typeof fileRow.name === 'string' ? truncateName(fileRow.name, 500) : undefined,
+			displayName:
+				typeof fileRow.display_name === 'string' ? truncateName(fileRow.display_name, 500) : undefined,
+			displayPath:
+				typeof fileRow.display_path === 'string' ? fileRow.display_path.slice(0, 2000) : undefined,
+			path: typeof fileRow.path === 'string' ? fileRow.path.slice(0, 2000) : undefined,
+			sizeBytes:
+				typeof fileRow.size === 'number' && fileRow.size >= 0 && Number.isFinite(fileRow.size)
+					? Math.trunc(fileRow.size)
+					: undefined,
+			hash: typeof fileRow.hash === 'string' ? fileRow.hash.slice(0, 512) : undefined,
+			uploadId: typeof fileRow.upload_id === 'string' ? fileRow.upload_id.slice(0, 256) : undefined,
+			uploadedAt,
+			previewUrl:
+				typeof fileRow.preview_url === 'string' ? fileRow.preview_url.slice(0, 4000) : undefined,
+			previewMimeType:
+				typeof fileRow.preview_mimetype === 'string' ? fileRow.preview_mimetype.slice(0, 128) : undefined,
+		});
+
+		const stlList = meta.objects_info?.objects;
+		if (Array.isArray(stlList)) {
+			for (const obj of stlList) {
+				const on = typeof obj?.name === 'string' ? obj.name.trim() : '';
+				if (!on) continue;
+				printObjects.push({
+					id: newRandomUuid(),
+					printId,
+					name: truncateName(on, 500),
+					quantity: 1,
+				});
+			}
+		}
+
+		const usedMm =
+			typeof meta.filament_used_mm === 'number' && meta.filament_used_mm >= 0
+				? meta.filament_used_mm
+				: typeof meta.filament_used_m === 'number' && meta.filament_used_m >= 0
+					? meta.filament_used_m * 1000
+					: undefined;
 
 		printFilamentUsages.push({
 			id: newRandomUuid(),
@@ -220,7 +448,18 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 			spoolId,
 			usedWeightG: fg,
 			wasteWeightG: 0,
-			cost: costMinor(meta.filament_cost, currency),
+			cost: slicerMoney,
+			usedLengthMm: usedMm,
+			usedVolumeMm3:
+				typeof meta.filament_used_mm3 === 'number' && meta.filament_used_mm3 >= 0
+					? meta.filament_used_mm3
+					: undefined,
+			usedVolumeCm3:
+				typeof meta.filament_used_cm3 === 'number' && meta.filament_used_cm3 >= 0
+					? meta.filament_used_cm3
+					: undefined,
+			slicerCost:
+				slicerMoney.minorUnits > 0 || meta.filament_cost !== undefined ? slicerMoney : undefined,
 			createdAt: printedAtIso,
 			updatedAt: printedAtIso,
 		});
@@ -234,6 +473,11 @@ export function buildLocalJsonSnapshotFromPrusaConnectJobsExport(
 			prints,
 			printFilamentUsages,
 			spoolAdjustments: [],
+			printers,
+			printExternalImports,
+			printSettings,
+			printFiles,
+			printObjects,
 		},
 	};
 

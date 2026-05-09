@@ -1,6 +1,6 @@
 import { db, type FilamentTrackerDatabase } from './db';
 import {
-	LocalJsonDbSnapshotSchema,
+	parseAndMigrateLocalJsonDbSnapshot,
 	collectLocalJsonDbSnapshot,
 	replaceIndexedDbFromLocalJsonSnapshot,
 	type LocalJsonDbSnapshot,
@@ -25,22 +25,54 @@ async function requestLocalJsonDbSnapshot(): Promise<unknown> {
 }
 
 function snapshotHasData(snapshot: LocalJsonDbSnapshot): boolean {
+	const t = snapshot.tables;
 	return (
-		snapshot.tables.spools.length > 0 ||
-		snapshot.tables.prints.length > 0 ||
-		snapshot.tables.printFilamentUsages.length > 0 ||
-		snapshot.tables.spoolAdjustments.length > 0
+		t.spools.length > 0 ||
+		t.prints.length > 0 ||
+		t.printFilamentUsages.length > 0 ||
+		t.spoolAdjustments.length > 0 ||
+		t.printers.length > 0 ||
+		t.printExternalImports.length > 0 ||
+		t.printSettings.length > 0 ||
+		t.printFiles.length > 0 ||
+		t.printObjects.length > 0
 	);
 }
 
 async function indexedDbHasData(database: FilamentTrackerDatabase): Promise<boolean> {
-	const [spools, prints, printFilamentUsages, spoolAdjustments] = await Promise.all([
+	const [
+		spools,
+		prints,
+		printFilamentUsages,
+		spoolAdjustments,
+		printers,
+		extImports,
+		settings,
+		files,
+		objects,
+	] = await Promise.all([
 		database.spools.count(),
 		database.prints.count(),
 		database.printFilamentUsages.count(),
 		database.spoolAdjustments.count(),
+		database.printers.count(),
+		database.printExternalImports.count(),
+		database.printSettings.count(),
+		database.printFiles.count(),
+		database.printObjects.count(),
 	]);
-	return spools + prints + printFilamentUsages + spoolAdjustments > 0;
+	return (
+		spools +
+			prints +
+			printFilamentUsages +
+			spoolAdjustments +
+			printers +
+			extImports +
+			settings +
+			files +
+			objects >
+		0
+	);
 }
 
 async function writeSnapshotToLocalJson(snapshot: LocalJsonDbSnapshot): Promise<void> {
@@ -61,7 +93,7 @@ export async function hydrateIndexedDbFromLocalJson(
 	database: FilamentTrackerDatabase = db,
 ): Promise<void> {
 	if (!shouldSync(database)) return;
-	const snapshot = LocalJsonDbSnapshotSchema.parse(await requestLocalJsonDbSnapshot());
+	const snapshot = parseAndMigrateLocalJsonDbSnapshot(await requestLocalJsonDbSnapshot());
 	if (!snapshotHasData(snapshot) && (await indexedDbHasData(database))) {
 		await writeSnapshotToLocalJson(await collectLocalJsonDbSnapshot(database));
 		return;

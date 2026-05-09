@@ -33,6 +33,11 @@ describe('local JSON database file', () => {
 				prints: [],
 				printFilamentUsages: [],
 				spoolAdjustments: [],
+				printers: [],
+				printExternalImports: [],
+				printSettings: [],
+				printFiles: [],
+				printObjects: [],
 			},
 		});
 	});

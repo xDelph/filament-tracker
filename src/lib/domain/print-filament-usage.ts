@@ -14,6 +14,11 @@ export const PrintFilamentUsageSchema = z.object({
 	wasteWeightG: finiteNonNegativeGrams().default(0),
 	/** Coût matière pour cette ligne, figé à l’écriture (spec). */
 	cost: MoneyMinorSchema,
+	usedLengthMm: z.number().finite().nonnegative().optional(),
+	usedVolumeMm3: z.number().finite().nonnegative().optional(),
+	usedVolumeCm3: z.number().finite().nonnegative().optional(),
+	/** Coût slicer (ex. `filament_cost` Prusa) distinct du coût bobine si un jour calculé localement. */
+	slicerCost: MoneyMinorSchema.optional(),
 	createdAt: z.string().datetime({ offset: true }),
 	updatedAt: z.string().datetime({ offset: true }),
 });

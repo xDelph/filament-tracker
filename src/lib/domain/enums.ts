@@ -20,3 +20,8 @@ export type SpoolStatus = z.infer<typeof SpoolStatusSchema>;
 export const PrintStatusSchema = z.enum(['completed', 'failed', 'cancelled']);
 
 export type PrintStatus = z.infer<typeof PrintStatusSchema>;
+
+/** Origine des métadonnées d’import (pas de PII Prusa stockée). */
+export const PrintExternalSourceSchema = z.enum(['manual', 'prusa_connect']);
+
+export type PrintExternalSource = z.infer<typeof PrintExternalSourceSchema>;

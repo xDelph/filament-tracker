@@ -1,12 +1,14 @@
 /** Barrel réexport pour `src/lib/domain` (voir `docs/technical-stack.md`). */
 export type {
 	FilamentStandardMaterial,
+	PrintExternalSource,
 	PrintStatus,
 	SpoolStatus,
 } from './enums';
 
 export {
 	FilamentStandardMaterialSchema,
+	PrintExternalSourceSchema,
 	PrintStatusSchema,
 	SpoolStatusSchema,
 } from './enums';
@@ -79,3 +81,23 @@ export {
 export type { SpoolAdjustment, SpoolAdjustmentCreateInput } from './spool-adjustment';
 
 export { SpoolAdjustmentSchema, SpoolAdjustmentCreateInputSchema } from './spool-adjustment';
+
+export type { Printer } from './printer';
+
+export { PrinterSchema } from './printer';
+
+export type { PrintExternalImport } from './print-external-import';
+
+export { PrintExternalImportSchema } from './print-external-import';
+
+export type { PrintSettings } from './print-settings';
+
+export { PrintSettingsSchema } from './print-settings';
+
+export type { PrintFile } from './print-file';
+
+export { PrintFileSchema } from './print-file';
+
+export type { PrintObject } from './print-object';
+
+export { PrintObjectSchema } from './print-object';
