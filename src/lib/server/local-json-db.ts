@@ -25,7 +25,7 @@ export async function readLocalJsonDb(filePath?: string): Promise<LocalJsonDbSna
 }
 
 export async function writeLocalJsonDb(
-	snapshot: LocalJsonDbSnapshot,
+	snapshot: LocalJsonDbSnapshot | unknown,
 	filePath?: string,
 ): Promise<LocalJsonDbSnapshot> {
 	const parsed = LocalJsonDbSnapshotSchema.parse(snapshot);

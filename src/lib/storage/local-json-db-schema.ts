@@ -1,13 +1,18 @@
 import { z } from 'zod';
 
 import {
+	PrintExternalImportSchema,
+	PrintFileSchema,
 	PrintFilamentUsageSchema,
+	PrintObjectSchema,
 	PrintSchema,
+	PrintSettingsSchema,
+	PrinterSchema,
 	SpoolAdjustmentSchema,
 	SpoolSchema,
 } from '../domain';
 
-export const LOCAL_JSON_DB_SCHEMA_VERSION = 1;
+export const LOCAL_JSON_DB_SCHEMA_VERSION = 2;
 
 export const LocalJsonDbSnapshotSchema = z.object({
 	schemaVersion: z.literal(LOCAL_JSON_DB_SCHEMA_VERSION),
@@ -17,6 +22,11 @@ export const LocalJsonDbSnapshotSchema = z.object({
 		prints: z.array(PrintSchema),
 		printFilamentUsages: z.array(PrintFilamentUsageSchema),
 		spoolAdjustments: z.array(SpoolAdjustmentSchema),
+		printers: z.array(PrinterSchema),
+		printExternalImports: z.array(PrintExternalImportSchema),
+		printSettings: z.array(PrintSettingsSchema),
+		printFiles: z.array(PrintFileSchema),
+		printObjects: z.array(PrintObjectSchema),
 	}),
 });
 
@@ -31,6 +41,11 @@ export function emptyLocalJsonDbSnapshot(now = new Date().toISOString()): LocalJ
 			prints: [],
 			printFilamentUsages: [],
 			spoolAdjustments: [],
+			printers: [],
+			printExternalImports: [],
+			printSettings: [],
+			printFiles: [],
+			printObjects: [],
 		},
 	};
 }

@@ -14,6 +14,12 @@ export const PrintSchema = z.object({
 	printedAt: z.string().datetime({ offset: true }),
 	status: PrintStatusSchema,
 	notes: z.string().max(5000).optional(),
+	printerId: z.string().uuid().optional(),
+	startedAt: z.string().datetime({ offset: true }).optional(),
+	finishedAt: z.string().datetime({ offset: true }).optional(),
+	timePrintingSec: z.number().finite().nonnegative().optional(),
+	elapsedSec: z.number().finite().nonnegative().optional(),
+	estimatedPrintTimeSec: z.number().finite().nonnegative().optional(),
 	createdAt: z.string().datetime({ offset: true }),
 	updatedAt: z.string().datetime({ offset: true }),
 });

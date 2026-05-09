@@ -1,4 +1,9 @@
-export { db, FilamentTrackerDb, FilamentTrackerDatabase } from './db';
+export {
+	db,
+	FilamentTrackerDb,
+	FilamentTrackerDatabase,
+	FILAMENT_TRACKER_INDEXED_DB_NAME,
+} from './db';
 export {
 	LOCAL_JSON_DB_SCHEMA_VERSION,
 	LocalJsonDbSnapshotSchema,

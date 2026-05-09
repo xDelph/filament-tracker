@@ -75,6 +75,11 @@ describe('local JSON database snapshots', () => {
 				prints: [],
 				printFilamentUsages: [],
 				spoolAdjustments: [],
+				printers: [],
+				printExternalImports: [],
+				printSettings: [],
+				printFiles: [],
+				printObjects: [],
 			},
 		});
 	});

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -33,6 +33,11 @@ describe('local JSON database file', () => {
 				prints: [],
 				printFilamentUsages: [],
 				spoolAdjustments: [],
+				printers: [],
+				printExternalImports: [],
+				printSettings: [],
+				printFiles: [],
+				printObjects: [],
 			},
 		});
 	});
@@ -59,5 +64,20 @@ describe('local JSON database file', () => {
 		await expect(readLocalJsonDb(filePath)).resolves.toMatchObject({
 			tables: { spools: [] },
 		});
+	});
+
+	it('rejette un fichier snapshot sans les tables du schéma courant', async () => {
+		const legacy = {
+			schemaVersion: 1,
+			updatedAt: '2026-05-06T12:00:00.000Z',
+			tables: {
+				spools: [],
+				prints: [],
+				printFilamentUsages: [],
+				spoolAdjustments: [],
+			},
+		};
+		await writeFile(filePath, JSON.stringify(legacy), 'utf8');
+		await expect(readLocalJsonDb(filePath)).rejects.toThrow();
 	});
 });
