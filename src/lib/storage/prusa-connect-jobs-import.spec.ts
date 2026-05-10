@@ -144,4 +144,48 @@ describe('buildLocalJsonSnapshotFromPrusaConnectJobsExport', () => {
 		expect(new Set(snap.tables.printExternalImports.map((e) => e.externalJobId)).size).toBe(2);
 		expect(snap.tables.printFilamentUsages).toHaveLength(2);
 	});
+
+	it('FIN_STOPPED sans consommation : print sans ligne filament', () => {
+		const snap = buildLocalJsonSnapshotFromPrusaConnectJobsExport(
+			{
+				jobs: [
+					{
+						lifetime_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+						state: 'FIN_STOPPED',
+						file: {
+							display_name: 'stopped.gcode',
+							meta: metaMinimal(8),
+						},
+					},
+				],
+			},
+			{ stoppedJobsConsumeFilament: false },
+		);
+		expect(snap.tables.prints).toHaveLength(1);
+		expect(snap.tables.prints[0]!.status).toBe('cancelled');
+		expect(snap.tables.printFilamentUsages).toHaveLength(0);
+	});
+
+	it('mode agrégé : un objet par job', () => {
+		const snap = buildLocalJsonSnapshotFromPrusaConnectJobsExport(
+			{
+				jobs: [
+					{
+						lifetime_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+						state: 'FIN_OK',
+						file: {
+							display_name: 'x.gcode',
+							meta: {
+								...metaMinimal(5),
+								objects_info: { objects: [{ name: 'a.stl' }, { name: 'b.stl' }] },
+							},
+						},
+					},
+				],
+			},
+			{ objectsMode: 'aggregated' },
+		);
+		expect(snap.tables.printObjects).toHaveLength(1);
+		expect(snap.tables.printObjects[0]!.name).toContain('agrégé');
+	});
 });
