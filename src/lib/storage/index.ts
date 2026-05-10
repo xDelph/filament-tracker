@@ -31,9 +31,13 @@ export {
 	PrintPersistenceError,
 	QuickPrintCreateInputSchema,
 	createPrintWithUsages,
+	listPrintExternalImports,
+	listPrintFiles,
+	listPrintSettings,
 	listPrintUsages,
 	listPrintUsagesForSpool,
 	listPrints,
+	listPrinters,
 	type CreatePrintResult,
 	type QuickPrintCreateInput,
 } from './prints';
