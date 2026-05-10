@@ -14,6 +14,12 @@ export const PrintFileSchema = z.object({
 	uploadedAt: z.string().datetime({ offset: true }).optional(),
 	previewUrl: z.string().max(4000).optional(),
 	previewMimeType: z.string().max(128).optional(),
+	/** Horodatage embarqué dans les méta G-code Prusa (`m_timestamp`), secondes UNIX si présent. */
+	sourceMetaTimestampSec: z.number().finite().optional(),
+	/** État de synchro côté Connect sur l’entrée fichier (champ `file.sync`). */
+	connectSyncState: z.string().max(128).optional(),
+	/** Dernière mise à jour de synchro fichier côté Connect si disponible. */
+	connectSyncUpdatedAt: z.string().datetime({ offset: true }).optional(),
 });
 
 export type PrintFile = z.infer<typeof PrintFileSchema>;
