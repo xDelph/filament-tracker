@@ -2,8 +2,12 @@ import { z } from 'zod';
 
 import {
 	PrintCreateInputSchema,
+	type PrintExternalImport,
+	type PrintFile,
 	PrintFilamentUsageSchema,
 	PrintSchema,
+	type PrintSettings,
+	type Printer,
 	type Print,
 	type PrintFilamentUsage,
 	type PrintStatus,
@@ -154,6 +158,26 @@ export async function listPrintUsages(
 	database: FilamentTrackerDatabase = db,
 ): Promise<PrintFilamentUsage[]> {
 	return database.printFilamentUsages.toArray();
+}
+
+export async function listPrintSettings(
+	database: FilamentTrackerDatabase = db,
+): Promise<PrintSettings[]> {
+	return database.printSettings.toArray();
+}
+
+export async function listPrintFiles(database: FilamentTrackerDatabase = db): Promise<PrintFile[]> {
+	return database.printFiles.toArray();
+}
+
+export async function listPrinters(database: FilamentTrackerDatabase = db): Promise<Printer[]> {
+	return database.printers.toArray();
+}
+
+export async function listPrintExternalImports(
+	database: FilamentTrackerDatabase = db,
+): Promise<PrintExternalImport[]> {
+	return database.printExternalImports.toArray();
 }
 
 export async function listPrintUsagesForSpool(

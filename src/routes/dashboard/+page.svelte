@@ -4,6 +4,11 @@
 
 	import { resolve } from '$app/paths';
 	import {
+		buildPrusaDashboardStats,
+		type BreakdownItem,
+		type PrusaDashboardStats,
+	} from '$lib/dashboard/prusa-print-stats';
+	import {
 		buildLastUsedMsBySpoolId,
 		filterDashboardSpools,
 		formatLastUsedRelative,
@@ -14,7 +19,16 @@
 		type DashboardSpoolSort,
 	} from '$lib/dashboard/spool-inventory-view';
 	import { Button, Modal, AddPrintModal, Select, SpoolForm, SpoolList } from '$lib/components/ui';
-	import type { Print, PrintFilamentUsage, PrintStatus, Spool } from '$lib/domain';
+	import type {
+		Print,
+		PrintExternalImport,
+		PrintFile,
+		PrintFilamentUsage,
+		PrintSettings,
+		PrintStatus,
+		Printer,
+		Spool,
+	} from '$lib/domain';
 	import {
 		formatMoneyMinor,
 		remainingPercentOfInitial,
@@ -23,14 +37,22 @@
 	import {
 		archiveSpool,
 		listActiveInventorySpools,
+		listPrintExternalImports,
+		listPrintFiles,
+		listPrintSettings,
 		listPrintUsages,
 		listPrints,
+		listPrinters,
 		markSpoolEmpty,
 	} from '$lib/storage';
 
 	let spools = $state<Spool[]>([]);
 	let prints = $state<Print[]>([]);
 	let usages = $state<PrintFilamentUsage[]>([]);
+	let printSettings = $state<PrintSettings[]>([]);
+	let printFiles = $state<PrintFile[]>([]);
+	let printers = $state<Printer[]>([]);
+	let printExternalImports = $state<PrintExternalImport[]>([]);
 
 	$effect(() => {
 		const subscription = liveQuery(() => listActiveInventorySpools()).subscribe((rows) => {
@@ -49,6 +71,34 @@
 	$effect(() => {
 		const subscription = liveQuery(() => listPrintUsages()).subscribe((rows) => {
 			usages = rows;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	$effect(() => {
+		const subscription = liveQuery(() => listPrintSettings()).subscribe((rows) => {
+			printSettings = rows;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	$effect(() => {
+		const subscription = liveQuery(() => listPrintFiles()).subscribe((rows) => {
+			printFiles = rows;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	$effect(() => {
+		const subscription = liveQuery(() => listPrinters()).subscribe((rows) => {
+			printers = rows;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	$effect(() => {
+		const subscription = liveQuery(() => listPrintExternalImports()).subscribe((rows) => {
+			printExternalImports = rows;
 		});
 		return () => subscription.unsubscribe();
 	});
@@ -268,6 +318,52 @@
 	}
 
 	let spoolSummaries = $derived(sortedSpools.map((s) => toSummary(s, Date.now())));
+
+	let prusaStats = $derived(
+		buildPrusaDashboardStats({
+			prints,
+			usages,
+			spools,
+			settings: printSettings,
+			files: printFiles,
+			printers,
+			externalImports: printExternalImports,
+		}),
+	);
+
+	function formatWeight(g: number): string {
+		if (g >= 1000) {
+			return `${(g / 1000).toFixed(g >= 10_000 ? 1 : 2)} kg`;
+		}
+		return `${g.toFixed(g >= 10 ? 1 : 2)} g`;
+	}
+
+	function formatDuration(sec: number | undefined): string {
+		if (sec === undefined || !Number.isFinite(sec)) return '—';
+		const hours = Math.floor(sec / 3600);
+		const minutes = Math.round((sec % 3600) / 60);
+		if (hours === 0) return `${minutes} min`;
+		if (minutes === 60) return `${hours + 1} h`;
+		return `${hours} h ${minutes.toString().padStart(2, '0')}`;
+	}
+
+	function formatDelta(sec: number): string {
+		if (sec === 0) return '0 min';
+		const sign = sec > 0 ? '+' : '-';
+		return `${sign}${formatDuration(Math.abs(sec))}`;
+	}
+
+	function statusLabel(status: PrintStatus): string {
+		return PRINT_STATUS_LABEL_FR[status];
+	}
+
+	function topItems(items: BreakdownItem[], limit = 5): BreakdownItem[] {
+		return items.slice(0, limit);
+	}
+
+	function hasPrusaStats(stats: PrusaDashboardStats): boolean {
+		return stats.totalPrints > 0;
+	}
 </script>
 
 <div class="grid gap-6">
@@ -294,6 +390,167 @@
 			{successMessage}
 		</p>
 	{/if}
+
+	<section class="grid gap-4" aria-labelledby="prusa-stats-heading">
+		<div class="flex flex-wrap items-end justify-between gap-3">
+			<div class="min-w-0 flex-1">
+				<h2 id="prusa-stats-heading" class="text-base font-semibold text-ink">
+					Statistiques Prusa Connect
+				</h2>
+				<p class="mt-1 text-sm text-ink-muted">
+					Vue opérationnelle des imports enrichis, dédupliquée par job externe quand disponible.
+				</p>
+			</div>
+		</div>
+
+		{#if hasPrusaStats(prusaStats)}
+			<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<p class="text-xs font-medium uppercase text-ink-muted">Filament total</p>
+					<p class="mt-2 text-2xl font-semibold text-ink">{formatWeight(prusaStats.totalFilamentG)}</p>
+					<p class="mt-1 text-xs text-ink-muted">{prusaStats.totalPrints} jobs comptés</p>
+				</div>
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<p class="text-xs font-medium uppercase text-ink-muted">Temps réel</p>
+					<p class="mt-2 text-2xl font-semibold text-ink">
+						{formatDuration(prusaStats.totalRealTimeSec)}
+					</p>
+					<p class="mt-1 text-xs text-ink-muted">Temps d'impression ou durée écoulée</p>
+				</div>
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<p class="text-xs font-medium uppercase text-ink-muted">Temps estimé</p>
+					<p class="mt-2 text-2xl font-semibold text-ink">
+						{formatDuration(prusaStats.totalEstimatedTimeSec)}
+					</p>
+					<p class="mt-1 text-xs text-ink-muted">
+						Écart réel / estimé&nbsp;: {formatDelta(prusaStats.estimateDeltaSec)}
+					</p>
+				</div>
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<p class="text-xs font-medium uppercase text-ink-muted">Interruptions</p>
+					<p class="mt-2 text-2xl font-semibold text-ink">{prusaStats.interruptedPrints}</p>
+					<p class="mt-1 text-xs text-ink-muted">
+						{prusaStats.completedPrints} terminée{prusaStats.completedPrints === 1 ? '' : 's'}
+					</p>
+				</div>
+			</div>
+
+			<div class="grid gap-4 xl:grid-cols-3">
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<h3 class="text-sm font-semibold text-ink">Statuts</h3>
+					<div class="mt-3 grid gap-2">
+						{#each topItems(prusaStats.statusBreakdown, 4) as item}
+							<div class="flex items-center justify-between gap-3 text-sm">
+								<span class="truncate text-ink-muted">{item.label}</span>
+								<span class="font-medium text-ink">{item.count} / {formatWeight(item.grams)}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<h3 class="text-sm font-semibold text-ink">Matières</h3>
+					<div class="mt-3 grid gap-2">
+						{#each topItems(prusaStats.materialBreakdown) as item}
+							<div class="flex items-center justify-between gap-3 text-sm">
+								<span class="truncate text-ink-muted">{item.label}</span>
+								<span class="font-medium text-ink">{formatWeight(item.grams)}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<h3 class="text-sm font-semibold text-ink">Imprimantes</h3>
+					<div class="mt-3 grid gap-2">
+						{#each topItems(prusaStats.printerBreakdown) as item}
+							<div class="flex items-center justify-between gap-3 text-sm">
+								<span class="truncate text-ink-muted">{item.label}</span>
+								<span class="font-medium text-ink">{item.count}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			</div>
+
+			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<h3 class="text-sm font-semibold text-ink">Layer height</h3>
+					<div class="mt-3 grid gap-2">
+						{#each topItems(prusaStats.layerHeightBreakdown, 4) as item}
+							<div class="flex items-center justify-between gap-3 text-sm">
+								<span class="truncate text-ink-muted">{item.label}</span>
+								<span class="font-medium text-ink">{item.count}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<h3 class="text-sm font-semibold text-ink">Buse</h3>
+					<div class="mt-3 grid gap-2">
+						{#each topItems(prusaStats.nozzleBreakdown, 4) as item}
+							<div class="flex items-center justify-between gap-3 text-sm">
+								<span class="truncate text-ink-muted">{item.label}</span>
+								<span class="font-medium text-ink">{item.count}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<h3 class="text-sm font-semibold text-ink">Supports</h3>
+					<div class="mt-3 grid gap-2">
+						{#each topItems(prusaStats.supportBreakdown, 4) as item}
+							<div class="flex items-center justify-between gap-3 text-sm">
+								<span class="truncate text-ink-muted">{item.label}</span>
+								<span class="font-medium text-ink">{item.count}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				<div class="rounded-lg border border-line bg-panel p-4">
+					<h3 class="text-sm font-semibold text-ink">Températures</h3>
+					<div class="mt-3 grid gap-2">
+						{#each topItems(prusaStats.temperatureBreakdown, 4) as item}
+							<div class="flex items-center justify-between gap-3 text-sm">
+								<span class="truncate text-ink-muted">{item.label}</span>
+								<span class="font-medium text-ink">{item.count}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			</div>
+
+			<div>
+				<div class="mb-3 flex items-center justify-between gap-3">
+					<h3 class="text-sm font-semibold text-ink">Erreurs et interruptions</h3>
+					<p class="text-sm text-ink-muted">{prusaStats.interrupted.length} job{prusaStats.interrupted.length === 1 ? '' : 's'}</p>
+				</div>
+				<div class="overflow-hidden rounded-lg border border-line bg-panel">
+					{#each prusaStats.interrupted.slice(0, 8) as item (item.id)}
+						<div
+							class="grid gap-2 border-b border-line px-4 py-3 last:border-b-0 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center"
+						>
+							<div class="min-w-0">
+								<p class="truncate text-sm font-semibold text-ink">{item.name}</p>
+								<p class="truncate text-xs text-ink-muted">
+									{item.fileName} / {statusLabel(item.status)}
+								</p>
+							</div>
+							<p class="text-sm text-ink">{formatDuration(item.durationSec)}</p>
+							<p class="text-sm text-ink-muted">
+								Hauteur Connect&nbsp;: {item.connectPrintHeightRaw ?? '—'}
+							</p>
+							<p class="text-sm font-semibold text-ink">{formatWeight(item.filamentG)}</p>
+						</div>
+					{:else}
+						<p class="p-4 text-sm text-ink-muted">Aucune interruption importée.</p>
+					{/each}
+				</div>
+			</div>
+		{:else}
+			<div class="rounded-lg border border-line bg-panel p-6 text-sm text-ink-muted">
+				Aucun job Prusa enrichi n’est disponible pour alimenter ces statistiques.
+			</div>
+		{/if}
+	</section>
 
 	<section class="grid gap-4" aria-labelledby="inventory-heading">
 		<div class="flex flex-wrap items-end justify-between gap-3">
