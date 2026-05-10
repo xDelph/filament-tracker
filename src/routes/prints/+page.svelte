@@ -3,15 +3,46 @@
 
 	import { resolve } from '$app/paths';
 	import { StatusBadge } from '$lib/components/ui';
-	import type { Print, PrintFilamentUsage, PrintStatus, Spool } from '$lib/domain';
+	import type {
+		Print,
+		PrintExternalImport,
+		PrintFile,
+		PrintFilamentUsage,
+		PrintObject,
+		PrintSettings,
+		PrintStatus,
+		Printer,
+		Spool,
+	} from '$lib/domain';
 	import { formatMoneyMinor } from '$lib/domain';
-	import { listPrintUsages, listPrints, listSpools } from '$lib/storage';
+	import {
+		listPrintExternalImports,
+		listPrintFiles,
+		listPrintObjects,
+		listPrintSettings,
+		listPrintUsages,
+		listPrinters,
+		listPrints,
+		listSpools,
+	} from '$lib/storage';
 
 	type HistoryRow = Print & {
 		totalG: number;
 		totalCost: string;
 		spoolNames: string;
 		materials: string[];
+		printer?: Printer;
+		printerLabel?: string;
+		settings?: PrintSettings;
+		files: PrintFile[];
+		objects: PrintObject[];
+		import?: PrintExternalImport;
+		sourceLabel?: string;
+		nozzleLabel?: string;
+		layerHeightLabel?: string;
+		actualDurationLabel?: string;
+		estimatedDurationLabel?: string;
+		fileSearchText: string;
 		usages: Array<
 			PrintFilamentUsage & {
 				spool?: Spool;
@@ -29,18 +60,35 @@
 		{ value: 'cancelled', label: 'Cancelled' },
 	];
 
+	type SortKey = 'printedAt' | 'actualDuration' | 'estimatedDuration' | 'filament' | 'cost';
+
 	let prints = $state<Print[]>([]);
 	let usages = $state<PrintFilamentUsage[]>([]);
 	let spools = $state<Spool[]>([]);
+	let printers = $state<Printer[]>([]);
+	let imports = $state<PrintExternalImport[]>([]);
+	let settingsRows = $state<PrintSettings[]>([]);
+	let files = $state<PrintFile[]>([]);
+	let objects = $state<PrintObject[]>([]);
 	let printsLoaded = $state(false);
 	let usagesLoaded = $state(false);
 	let spoolsLoaded = $state(false);
+	let printersLoaded = $state(false);
+	let importsLoaded = $state(false);
+	let settingsLoaded = $state(false);
+	let filesLoaded = $state(false);
+	let objectsLoaded = $state(false);
 
 	let startDate = $state('');
 	let endDate = $state('');
 	let spoolIdFilter = $state('');
 	let materialFilter = $state('');
 	let statusFilter = $state<PrintStatus | ''>('');
+	let printerFilter = $state('');
+	let nozzleFilter = $state('');
+	let layerHeightFilter = $state('');
+	let queryFilter = $state('');
+	let sortKey = $state<SortKey>('printedAt');
 	let selectedPrintId = $state<string | null>(null);
 
 	$effect(() => {
@@ -67,8 +115,64 @@
 		return () => subscription.unsubscribe();
 	});
 
-	let loading = $derived(!(printsLoaded && usagesLoaded && spoolsLoaded));
+	$effect(() => {
+		const subscription = liveQuery(() => listPrinters()).subscribe((rows) => {
+			printers = rows;
+			printersLoaded = true;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	$effect(() => {
+		const subscription = liveQuery(() => listPrintExternalImports()).subscribe((rows) => {
+			imports = rows;
+			importsLoaded = true;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	$effect(() => {
+		const subscription = liveQuery(() => listPrintSettings()).subscribe((rows) => {
+			settingsRows = rows;
+			settingsLoaded = true;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	$effect(() => {
+		const subscription = liveQuery(() => listPrintFiles()).subscribe((rows) => {
+			files = rows;
+			filesLoaded = true;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	$effect(() => {
+		const subscription = liveQuery(() => listPrintObjects()).subscribe((rows) => {
+			objects = rows;
+			objectsLoaded = true;
+		});
+		return () => subscription.unsubscribe();
+	});
+
+	let loading = $derived(
+		!(
+			printsLoaded &&
+			usagesLoaded &&
+			spoolsLoaded &&
+			printersLoaded &&
+			importsLoaded &&
+			settingsLoaded &&
+			filesLoaded &&
+			objectsLoaded
+		),
+	);
 	let spoolById = $derived(new Map(spools.map((spool) => [spool.id, spool])));
+	let printerById = $derived(new Map(printers.map((printer) => [printer.id, printer])));
+	let importByPrintId = $derived(new Map(imports.map((row) => [row.printId, row])));
+	let settingsByPrintId = $derived(new Map(settingsRows.map((row) => [row.printId, row])));
+	let filesByPrintId = $derived(groupByPrintId(files));
+	let objectsByPrintId = $derived(groupByPrintId(objects));
 
 	let spoolOptions = $derived(
 		spools
@@ -97,6 +201,24 @@
 				};
 			});
 			const materials = [...new Set(enrichedUsages.map((usage) => usage.materialLabel))];
+			const printer = print.printerId ? printerById.get(print.printerId) : undefined;
+			const settings = settingsByPrintId.get(print.id);
+			const printFiles = filesByPrintId.get(print.id) ?? [];
+			const printObjects = objectsByPrintId.get(print.id) ?? [];
+			const externalImport = importByPrintId.get(print.id);
+			const fileSearchText = [
+				print.name,
+				...printFiles.flatMap((file) => [
+					file.displayName,
+					file.fileName,
+					file.displayPath,
+					file.path,
+				]),
+				...printObjects.map((object) => object.name),
+			]
+				.filter(Boolean)
+				.join(' ')
+				.toLocaleLowerCase();
 
 			return {
 				...print,
@@ -104,23 +226,74 @@
 				totalCost: formatCostTotal(printUsages),
 				spoolNames: enrichedUsages.map((usage) => usage.spool?.name ?? 'Unknown spool').join(', '),
 				materials,
+				printer,
+				printerLabel: printerLabel(printer, settings),
+				settings,
+				files: printFiles,
+				objects: printObjects,
+				import: externalImport,
+				sourceLabel: externalImport ? sourceLabel(externalImport.source) : undefined,
+				nozzleLabel: settings?.nozzleDiameterMm ? `${settings.nozzleDiameterMm} mm` : undefined,
+				layerHeightLabel: settings?.layerHeightMm ? `${settings.layerHeightMm} mm` : undefined,
+				actualDurationLabel: formatDuration(print.timePrintingSec ?? print.elapsedSec),
+				estimatedDurationLabel: formatDuration(print.estimatedPrintTimeSec),
+				fileSearchText,
 				usages: enrichedUsages,
 			};
 		}),
 	);
 
-	let filteredRows = $derived(
-		historyRows.filter((row) => {
-			const printDate = localDateKey(row.printedAt);
-			const matchesStart = !startDate || printDate >= startDate;
-			const matchesEnd = !endDate || printDate <= endDate;
-			const matchesStatus = !statusFilter || row.status === statusFilter;
-			const matchesSpool =
-				!spoolIdFilter || row.usages.some((usage) => usage.spoolId === spoolIdFilter);
-			const matchesMaterial = !materialFilter || row.materials.includes(materialFilter);
+	let printerOptions = $derived(
+		[
+			...new Map(
+				historyRows
+					.filter((row) => row.printerLabel)
+					.map((row) => [row.printerLabel!, { value: row.printerLabel!, label: row.printerLabel! }]),
+			).values(),
+		].toSorted((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
+	);
 
-			return matchesStart && matchesEnd && matchesStatus && matchesSpool && matchesMaterial;
-		}),
+	let nozzleOptions = $derived(
+		[...new Set(historyRows.map((row) => row.nozzleLabel).filter((label) => label))]
+			.toSorted((a, b) => a!.localeCompare(b!, undefined, { numeric: true }))
+			.map((label) => ({ value: label!, label: label! })),
+	);
+
+	let layerHeightOptions = $derived(
+		[...new Set(historyRows.map((row) => row.layerHeightLabel).filter((label) => label))]
+			.toSorted((a, b) => a!.localeCompare(b!, undefined, { numeric: true }))
+			.map((label) => ({ value: label!, label: label! })),
+	);
+
+	let filteredRows = $derived(
+		historyRows
+			.filter((row) => {
+				const printDate = localDateKey(row.printedAt);
+				const query = queryFilter.trim().toLocaleLowerCase();
+				const matchesStart = !startDate || printDate >= startDate;
+				const matchesEnd = !endDate || printDate <= endDate;
+				const matchesStatus = !statusFilter || row.status === statusFilter;
+				const matchesSpool =
+					!spoolIdFilter || row.usages.some((usage) => usage.spoolId === spoolIdFilter);
+				const matchesMaterial = !materialFilter || row.materials.includes(materialFilter);
+				const matchesPrinter = !printerFilter || row.printerLabel === printerFilter;
+				const matchesNozzle = !nozzleFilter || row.nozzleLabel === nozzleFilter;
+				const matchesLayerHeight = !layerHeightFilter || row.layerHeightLabel === layerHeightFilter;
+				const matchesQuery = !query || row.fileSearchText.includes(query);
+
+				return (
+					matchesStart &&
+					matchesEnd &&
+					matchesStatus &&
+					matchesSpool &&
+					matchesMaterial &&
+					matchesPrinter &&
+					matchesNozzle &&
+					matchesLayerHeight &&
+					matchesQuery
+				);
+			})
+			.toSorted(compareRows),
 	);
 
 	let selectedPrint = $derived(
@@ -145,11 +318,65 @@
 		return spool.material.kind === 'catalog' ? spool.material.code : spool.material.label;
 	}
 
+	function groupByPrintId<T extends { printId: string }>(rows: T[]): Map<string, T[]> {
+		const grouped = new Map<string, T[]>();
+		for (const row of rows) {
+			const current = grouped.get(row.printId) ?? [];
+			current.push(row);
+			grouped.set(row.printId, current);
+		}
+		return grouped;
+	}
+
+	function printerLabel(printer: Printer | undefined, settings: PrintSettings | undefined): string | undefined {
+		if (!printer && !settings?.printerModelRaw) return undefined;
+		return printer?.displayName ?? printer?.model ?? settings?.printerModelRaw ?? printer?.externalPrinterUuid;
+	}
+
+	function sourceLabel(source: PrintExternalImport['source']): string {
+		return source === 'prusa_connect' ? 'Prusa Connect' : 'Manual';
+	}
+
 	function formatDateTime(value: string): string {
 		return new Intl.DateTimeFormat('fr-FR', {
 			dateStyle: 'medium',
 			timeStyle: 'short',
 		}).format(new Date(value));
+	}
+
+	function formatDuration(value: number | undefined): string | undefined {
+		if (value === undefined) return undefined;
+		const totalMinutes = Math.round(value / 60);
+		const hours = Math.floor(totalMinutes / 60);
+		const minutes = totalMinutes % 60;
+		if (hours === 0) return `${minutes} min`;
+		if (minutes === 0) return `${hours} h`;
+		return `${hours} h ${minutes} min`;
+	}
+
+	function formatFileSize(value: number | undefined): string | undefined {
+		if (value === undefined) return undefined;
+		if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+		return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	function compareRows(a: HistoryRow, b: HistoryRow): number {
+		switch (sortKey) {
+			case 'actualDuration':
+				return (b.timePrintingSec ?? b.elapsedSec ?? -1) - (a.timePrintingSec ?? a.elapsedSec ?? -1);
+			case 'estimatedDuration':
+				return (b.estimatedPrintTimeSec ?? -1) - (a.estimatedPrintTimeSec ?? -1);
+			case 'filament':
+				return b.totalG - a.totalG;
+			case 'cost':
+				return costSortValue(b) - costSortValue(a);
+			case 'printedAt':
+				return new Date(b.printedAt).getTime() - new Date(a.printedAt).getTime();
+		}
+	}
+
+	function costSortValue(row: HistoryRow): number {
+		return row.usages.reduce((sum, usage) => sum + usage.cost.minorUnits, 0);
 	}
 
 	function localDateKey(value: string): string {
@@ -186,6 +413,11 @@
 		spoolIdFilter = '';
 		materialFilter = '';
 		statusFilter = '';
+		printerFilter = '';
+		nozzleFilter = '';
+		layerHeightFilter = '';
+		queryFilter = '';
+		sortKey = 'printedAt';
 		selectedPrintId = null;
 	}
 </script>
@@ -207,6 +439,15 @@
 
 	<section class="grid gap-3 rounded-lg border border-line bg-panel p-4">
 		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+			<label class="grid gap-1.5 text-sm font-medium text-ink sm:col-span-2 lg:col-span-2" for="query-filter">
+				<span>File or object</span>
+				<input
+					id="query-filter"
+					class="h-9 rounded-md border border-line bg-panel px-3 text-sm text-ink shadow-sm"
+					type="search"
+					bind:value={queryFilter}
+				/>
+			</label>
 			<label class="grid gap-1.5 text-sm font-medium text-ink" for="start-date">
 				<span>From</span>
 				<input
@@ -263,6 +504,59 @@
 					{/each}
 				</select>
 			</label>
+			<label class="grid gap-1.5 text-sm font-medium text-ink" for="printer-filter">
+				<span>Printer</span>
+				<select
+					id="printer-filter"
+					class="h-9 rounded-md border border-line bg-panel px-3 text-sm text-ink shadow-sm"
+					bind:value={printerFilter}
+				>
+					<option value="">All printers</option>
+					{#each printerOptions as option}
+						<option value={option.value}>{option.label}</option>
+					{/each}
+				</select>
+			</label>
+			<label class="grid gap-1.5 text-sm font-medium text-ink" for="nozzle-filter">
+				<span>Nozzle</span>
+				<select
+					id="nozzle-filter"
+					class="h-9 rounded-md border border-line bg-panel px-3 text-sm text-ink shadow-sm"
+					bind:value={nozzleFilter}
+				>
+					<option value="">All nozzles</option>
+					{#each nozzleOptions as option}
+						<option value={option.value}>{option.label}</option>
+					{/each}
+				</select>
+			</label>
+			<label class="grid gap-1.5 text-sm font-medium text-ink" for="layer-height-filter">
+				<span>Layer height</span>
+				<select
+					id="layer-height-filter"
+					class="h-9 rounded-md border border-line bg-panel px-3 text-sm text-ink shadow-sm"
+					bind:value={layerHeightFilter}
+				>
+					<option value="">All heights</option>
+					{#each layerHeightOptions as option}
+						<option value={option.value}>{option.label}</option>
+					{/each}
+				</select>
+			</label>
+			<label class="grid gap-1.5 text-sm font-medium text-ink" for="sort-key">
+				<span>Sort</span>
+				<select
+					id="sort-key"
+					class="h-9 rounded-md border border-line bg-panel px-3 text-sm text-ink shadow-sm"
+					bind:value={sortKey}
+				>
+					<option value="printedAt">Newest first</option>
+					<option value="actualDuration">Actual duration</option>
+					<option value="estimatedDuration">Estimated duration</option>
+					<option value="filament">Filament</option>
+					<option value="cost">Cost</option>
+				</select>
+			</label>
 		</div>
 		<div class="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
 			<p class="text-sm text-ink-muted">
@@ -315,11 +609,13 @@
 			</div>
 		</section>
 	{:else}
-		<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+		<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_28rem]">
 			<section class="overflow-hidden rounded-lg border border-line bg-panel">
-				<div class="hidden grid-cols-[1fr_8rem_9rem_7rem] gap-4 border-b border-line bg-panel-muted px-4 py-2 text-xs font-semibold uppercase text-ink-muted md:grid">
+				<div class="hidden grid-cols-[minmax(12rem,1fr)_8rem_8rem_8rem_9rem_7rem] gap-4 border-b border-line bg-panel-muted px-4 py-2 text-xs font-semibold uppercase text-ink-muted lg:grid">
 					<span>Print</span>
 					<span>Status</span>
+					<span>Printer</span>
+					<span>Timing</span>
 					<span>Filament</span>
 					<span class="text-right">Cost</span>
 				</div>
@@ -327,7 +623,7 @@
 					<button
 						type="button"
 						class={[
-							'grid w-full gap-3 border-b border-line px-4 py-3 text-left last:border-b-0 hover:bg-panel-muted md:grid-cols-[1fr_8rem_9rem_7rem] md:items-center',
+							'grid w-full gap-3 border-b border-line px-4 py-3 text-left last:border-b-0 hover:bg-panel-muted lg:grid-cols-[minmax(12rem,1fr)_8rem_8rem_8rem_9rem_7rem] lg:items-center',
 							selectedPrint?.id === print.id ? 'bg-emerald-50' : 'bg-panel',
 						]}
 						onclick={() => (selectedPrintId = print.id)}
@@ -335,14 +631,42 @@
 						<div class="min-w-0">
 							<p class="truncate text-sm font-semibold text-ink">{print.name}</p>
 							<p class="truncate text-xs text-ink-muted">
-								{formatDateTime(print.printedAt)} / {print.spoolNames}
+								{formatDateTime(print.printedAt)}
+								{#if print.sourceLabel}
+									/ {print.sourceLabel}
+								{/if}
 							</p>
+							{#if print.nozzleLabel || print.layerHeightLabel || print.settings?.supportMaterial || print.settings?.nozzleTemperatureC}
+								<p class="mt-1 flex flex-wrap gap-1.5 text-xs text-ink-muted">
+									{#if print.nozzleLabel}<span>{print.nozzleLabel}</span>{/if}
+									{#if print.layerHeightLabel}<span>{print.layerHeightLabel}</span>{/if}
+									{#if print.settings?.supportMaterial}<span>supports</span>{/if}
+									{#if print.settings?.nozzleTemperatureC}<span>{print.settings.nozzleTemperatureC}°C</span>{/if}
+								</p>
+							{/if}
+							{#if print.objects.length > 0}
+								<p class="mt-1 truncate text-xs text-ink-muted">
+									{print.objects.map((object) => object.name).join(', ')}
+								</p>
+							{/if}
 						</div>
 						<div>
 							<StatusBadge status={print.status} />
 						</div>
-						<p class="text-sm font-medium text-ink">{print.totalG} g</p>
-						<p class="text-sm font-semibold text-ink md:text-right">{print.totalCost}</p>
+						<p class="truncate text-sm text-ink">{print.printerLabel ?? ''}</p>
+						<div class="text-sm text-ink">
+							{#if print.actualDurationLabel}
+								<p class="font-medium">{print.actualDurationLabel}</p>
+							{/if}
+							{#if print.estimatedDurationLabel}
+								<p class="text-xs text-ink-muted">est. {print.estimatedDurationLabel}</p>
+							{/if}
+						</div>
+						<div>
+							<p class="text-sm font-medium text-ink">{print.totalG} g</p>
+							<p class="truncate text-xs text-ink-muted">{print.materials.join(', ')}</p>
+						</div>
+						<p class="text-sm font-semibold text-ink lg:text-right">{print.totalCost}</p>
 					</button>
 				{/each}
 			</section>
@@ -366,9 +690,100 @@
 							<p class="text-xs font-medium text-ink-muted">Cost</p>
 							<p class="mt-1 text-lg font-semibold text-ink">{selectedPrint.totalCost}</p>
 						</div>
+						{#if selectedPrint.actualDurationLabel}
+							<div class="rounded-md border border-line bg-panel-muted p-3">
+								<p class="text-xs font-medium text-ink-muted">Actual</p>
+								<p class="mt-1 text-lg font-semibold text-ink">{selectedPrint.actualDurationLabel}</p>
+							</div>
+						{/if}
+						{#if selectedPrint.estimatedDurationLabel}
+							<div class="rounded-md border border-line bg-panel-muted p-3">
+								<p class="text-xs font-medium text-ink-muted">Estimated</p>
+								<p class="mt-1 text-lg font-semibold text-ink">{selectedPrint.estimatedDurationLabel}</p>
+							</div>
+						{/if}
 					</div>
 
-					<div class="mt-5 grid gap-3">
+					{#if selectedPrint.files.length > 0}
+						<div class="mt-5 border-t border-line pt-4">
+							<h3 class="text-sm font-semibold text-ink">File</h3>
+							<div class="mt-2 grid gap-2">
+								{#each selectedPrint.files as file (file.id)}
+									<div class="rounded-md border border-line p-3">
+										<p class="truncate text-sm font-semibold text-ink">
+											{file.displayName ?? file.fileName ?? file.displayPath ?? file.path}
+										</p>
+										<div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted">
+											{#if file.fileType}<span>{file.fileType}</span>{/if}
+											{#if formatFileSize(file.sizeBytes)}<span>{formatFileSize(file.sizeBytes)}</span>{/if}
+											{#if file.uploadedAt}<span>uploaded {formatDateTime(file.uploadedAt)}</span>{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					{#if selectedPrint.objects.length > 0}
+						<div class="mt-5 border-t border-line pt-4">
+							<h3 class="text-sm font-semibold text-ink">STL objects</h3>
+							<div class="mt-2 flex flex-wrap gap-2">
+								{#each selectedPrint.objects as object (object.id)}
+									<span class="max-w-full truncate rounded-md border border-line bg-panel-muted px-2 py-1 text-xs font-medium text-ink">
+										{object.name}{#if object.quantity && object.quantity > 1} ×{object.quantity}{/if}
+									</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					{#if selectedPrint.settings}
+						<div class="mt-5 border-t border-line pt-4">
+							<h3 class="text-sm font-semibold text-ink">Slicer settings</h3>
+							<dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+								{#if selectedPrint.nozzleLabel}
+									<div><dt class="text-xs text-ink-muted">Nozzle</dt><dd class="font-medium text-ink">{selectedPrint.nozzleLabel}{#if selectedPrint.settings.nozzleHighFlow} high flow{/if}</dd></div>
+								{/if}
+								{#if selectedPrint.layerHeightLabel}
+									<div><dt class="text-xs text-ink-muted">Layer</dt><dd class="font-medium text-ink">{selectedPrint.layerHeightLabel}</dd></div>
+								{/if}
+								{#if selectedPrint.settings.totalHeightMm !== undefined}
+									<div><dt class="text-xs text-ink-muted">Height</dt><dd class="font-medium text-ink">{selectedPrint.settings.totalHeightMm} mm</dd></div>
+								{/if}
+								{#if selectedPrint.settings.fillDensityPercent !== undefined}
+									<div><dt class="text-xs text-ink-muted">Infill</dt><dd class="font-medium text-ink">{selectedPrint.settings.fillDensityPercent}%</dd></div>
+								{/if}
+								{#if selectedPrint.settings.supportMaterial !== undefined}
+									<div><dt class="text-xs text-ink-muted">Supports</dt><dd class="font-medium text-ink">{selectedPrint.settings.supportMaterial ? 'Yes' : 'No'}</dd></div>
+								{/if}
+								{#if selectedPrint.settings.nozzleTemperatureC !== undefined}
+									<div><dt class="text-xs text-ink-muted">Nozzle temp</dt><dd class="font-medium text-ink">{selectedPrint.settings.nozzleTemperatureC}°C</dd></div>
+								{/if}
+								{#if selectedPrint.settings.bedTemperatureC !== undefined}
+									<div><dt class="text-xs text-ink-muted">Bed temp</dt><dd class="font-medium text-ink">{selectedPrint.settings.bedTemperatureC}°C</dd></div>
+								{/if}
+								{#if selectedPrint.settings.connectPrintHeightRaw !== undefined}
+									<div class="col-span-2"><dt class="text-xs text-ink-muted">Connect height raw</dt><dd class="font-medium text-ink">{selectedPrint.settings.connectPrintHeightRaw}</dd></div>
+								{/if}
+							</dl>
+						</div>
+					{/if}
+
+					{#if selectedPrint.printerLabel || selectedPrint.sourceLabel}
+						<div class="mt-5 border-t border-line pt-4">
+							<h3 class="text-sm font-semibold text-ink">Import</h3>
+							<dl class="mt-2 grid gap-2 text-sm">
+								{#if selectedPrint.printerLabel}
+									<div><dt class="text-xs text-ink-muted">Printer</dt><dd class="font-medium text-ink">{selectedPrint.printerLabel}</dd></div>
+								{/if}
+								{#if selectedPrint.sourceLabel}
+									<div><dt class="text-xs text-ink-muted">Source</dt><dd class="font-medium text-ink">{selectedPrint.sourceLabel}</dd></div>
+								{/if}
+							</dl>
+						</div>
+					{/if}
+
+					<div class="mt-5 grid gap-3 border-t border-line pt-4">
 						<h3 class="text-sm font-semibold text-ink">Spools used</h3>
 						{#each selectedPrint.usages as usage (usage.id)}
 							<div class="rounded-md border border-line p-3">
@@ -380,6 +795,13 @@
 										<p class="text-xs text-ink-muted">
 											{usage.materialLabel} / {usage.usedWeightG} g used / {usage.wasteWeightG} g waste
 										</p>
+										{#if usage.usedLengthMm || usage.usedVolumeCm3 || usage.usedVolumeMm3}
+											<p class="mt-1 text-xs text-ink-muted">
+												{#if usage.usedLengthMm}{Math.round(usage.usedLengthMm / 1000)} m{/if}
+												{#if usage.usedVolumeCm3} / {usage.usedVolumeCm3} cm³{/if}
+												{#if usage.usedVolumeMm3} / {usage.usedVolumeMm3} mm³{/if}
+							</p>
+										{/if}
 									</div>
 									<p class="shrink-0 text-sm font-semibold text-ink">{usage.costLabel}</p>
 								</div>
